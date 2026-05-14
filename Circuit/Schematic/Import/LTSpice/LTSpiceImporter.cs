@@ -88,13 +88,17 @@ namespace Circuit.LTSpiceImport
                     report.Warning(w.LineNumber, "WIRE endpoint not on LTSpice 16-unit grid; rounded.");
             }
 
-            // Translate flags: "0" â†’ Ground, named flag â†’ NamedWire.
+            // Translate flags: "0" -> Ground, named flag -> NamedWire. Give each
+            // instance a unique Name so Schematic.Build doesn't choke on duplicates.
+            int groundCounter = 0;
+            int namedWireCounter = 0;
             foreach (LTFlag f in sheet.Flags)
             {
                 Coord pos = LtToLs(new Coord(f.X, f.Y));
                 if (f.Name == "0")
                 {
                     Ground g = new Ground();
+                    g.Name = "GND" + (++groundCounter);
                     Symbol gs = new Symbol(g);
                     gs.Position = pos;
                     schematic.Add(gs);
@@ -103,6 +107,7 @@ namespace Circuit.LTSpiceImport
                 {
                     NamedWire nw = new NamedWire();
                     nw.WireName = f.Name;
+                    nw.Name = "NW" + (++namedWireCounter);
                     Symbol nws = new Symbol(nw);
                     nws.Position = pos;
                     schematic.Add(nws);

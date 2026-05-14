@@ -41,29 +41,38 @@ namespace Circuit.LTSpiceImport
 
     public static class Whitelist
     {
-        // Stock LTSpice pin offsets (R0) are derived from the .asy library. See plan.md.
-        // Anchor of a typical 2-terminal vertical symbol: top pin at (16, 16), bottom at (16, 96).
+        // Stock LTSpice pin offsets (R0) from the .asy library.
 
-        private static readonly Coord TwoTerminalPin1 = new Coord(16, 16);   // Top pin (Anode)
-        private static readonly Coord TwoTerminalPin2 = new Coord(16, 96);   // Bottom pin (Cathode)
+        // res/res2/ind/ind2: tall body, pins 96 apart at x=16.
+        private static readonly Coord TallTopPin = new Coord(16, 0);
+        private static readonly Coord TallBottomPin = new Coord(16, 96);
 
-        // BJT (npn/pnp): collector at top, base at left, emitter at bottom.
-        private static readonly Coord BjtCollector = new Coord(64, 0);
-        private static readonly Coord BjtBase = new Coord(0, 48);
-        private static readonly Coord BjtEmitter = new Coord(64, 96);
+        // cap/polcap/diode/schottky/zener/LED/LED2: short body, pins 64 apart at x=16.
+        private static readonly Coord ShortTopPin = new Coord(16, 0);
+        private static readonly Coord ShortBottomPin = new Coord(16, 64);
 
-        // JFET (njf/pjf): drain at top, gate at left, source at bottom.
-        private static readonly Coord JfetDrain = new Coord(64, 0);
-        private static readonly Coord JfetGate = new Coord(0, 48);
-        private static readonly Coord JfetSource = new Coord(64, 96);
+        // voltage/current source: pins at x=0, 96 apart (no x offset).
+        private static readonly Coord SourceTopPin = new Coord(0, 0);
+        private static readonly Coord SourceBottomPin = new Coord(0, 96);
 
-        // Opamp pins (LTSpice "Opamps\opamp", "opamp2", "UniversalOpamp2"):
-        // +input top-left, -input bottom-left, output right, V+ top, V- bottom.
-        private static readonly Coord OpampPlus = new Coord(0, 32);
-        private static readonly Coord OpampMinus = new Coord(0, 64);
-        private static readonly Coord OpampOut = new Coord(96, 48);
-        private static readonly Coord OpampVcc = new Coord(48, 16);
-        private static readonly Coord OpampVee = new Coord(48, 80);
+        // BJT npn (collector top, base left, emitter bottom). pnp has the same pin
+        // positions but the top/bottom roles are swapped at the symbol level.
+        private static readonly Coord BjtTop = new Coord(16, 0);
+        private static readonly Coord BjtBase = new Coord(-16, 48);
+        private static readonly Coord BjtBottom = new Coord(16, 96);
+
+        // JFET njf (drain top, gate left, source bottom). pjf swaps top/bottom roles.
+        private static readonly Coord JfetTop = new Coord(16, 0);
+        private static readonly Coord JfetGate = new Coord(-32, 48);
+        private static readonly Coord JfetBottom = new Coord(16, 96);
+
+        // Opamp pins (LTSpice "Opamps\opamp"): +input top-left, -input bottom-left,
+        // output right, V+ top, V- bottom.
+        private static readonly Coord OpampPlus = new Coord(-32, 32);
+        private static readonly Coord OpampMinus = new Coord(-32, 64);
+        private static readonly Coord OpampOut = new Coord(32, 48);
+        private static readonly Coord OpampVcc = new Coord(0, 32);
+        private static readonly Coord OpampVee = new Coord(0, 64);
 
         private static readonly Dictionary<string, WhitelistEntry> Entries = BuildEntries();
 
@@ -85,34 +94,34 @@ namespace Circuit.LTSpiceImport
         {
             var d = new Dictionary<string, WhitelistEntry>();
 
-            // Resistors: res, res2
+            // Resistors: res, res2 — tall body.
             var resistorPins = new List<PinSpec> {
-                new PinSpec(TwoTerminalPin1, c => ((Resistor)c).Anode),
-                new PinSpec(TwoTerminalPin2, c => ((Resistor)c).Cathode),
+                new PinSpec(TallTopPin, c => ((Resistor)c).Anode),
+                new PinSpec(TallBottomPin, c => ((Resistor)c).Cathode),
             };
             d[Normalize("res")] = new WhitelistEntry("res", MakeResistor, resistorPins);
             d[Normalize("res2")] = new WhitelistEntry("res2", MakeResistor, resistorPins);
 
-            // Capacitors: cap, polcap
+            // Capacitors: cap, polcap — short body.
             var capPins = new List<PinSpec> {
-                new PinSpec(TwoTerminalPin1, c => ((Capacitor)c).Anode),
-                new PinSpec(TwoTerminalPin2, c => ((Capacitor)c).Cathode),
+                new PinSpec(ShortTopPin, c => ((Capacitor)c).Anode),
+                new PinSpec(ShortBottomPin, c => ((Capacitor)c).Cathode),
             };
             d[Normalize("cap")] = new WhitelistEntry("cap", MakeCapacitor, capPins);
             d[Normalize("polcap")] = new WhitelistEntry("polcap", MakeCapacitor, capPins);
 
-            // Inductors: ind, ind2
+            // Inductors: ind, ind2 — tall body.
             var indPins = new List<PinSpec> {
-                new PinSpec(TwoTerminalPin1, c => ((Inductor)c).Anode),
-                new PinSpec(TwoTerminalPin2, c => ((Inductor)c).Cathode),
+                new PinSpec(TallTopPin, c => ((Inductor)c).Anode),
+                new PinSpec(TallBottomPin, c => ((Inductor)c).Cathode),
             };
             d[Normalize("ind")] = new WhitelistEntry("ind", MakeInductor, indPins);
             d[Normalize("ind2")] = new WhitelistEntry("ind2", MakeInductor, indPins);
 
-            // Diodes: diode, schottky, zener, LED, LED2
+            // Diodes: diode, schottky, zener, LED, LED2 — short body.
             var diodePins = new List<PinSpec> {
-                new PinSpec(TwoTerminalPin1, c => ((Diode)c).Anode),
-                new PinSpec(TwoTerminalPin2, c => ((Diode)c).Cathode),
+                new PinSpec(ShortTopPin, c => ((Diode)c).Anode),
+                new PinSpec(ShortBottomPin, c => ((Diode)c).Cathode),
             };
             d[Normalize("diode")] = new WhitelistEntry("diode", (s, p, r) => MakeDiode(s, p, r, DiodeType.Diode), diodePins);
             d[Normalize("schottky")] = new WhitelistEntry("schottky", (s, p, r) => MakeDiode(s, p, r, DiodeType.Diode), diodePins);
@@ -122,35 +131,48 @@ namespace Circuit.LTSpiceImport
 
             // Voltage source — may build a Rail (DC) or a VoltageSource (function-style).
             var vsourcePins = new List<PinSpec> {
-                new PinSpec(TwoTerminalPin1, c => c is Rail r ? r.Terminal : c is VoltageSource v ? v.Anode : null),
-                new PinSpec(TwoTerminalPin2, c => c is Rail ? null : c is VoltageSource v ? v.Cathode : null),
+                new PinSpec(SourceTopPin, c => c is Rail r ? r.Terminal : c is VoltageSource v ? v.Anode : null),
+                new PinSpec(SourceBottomPin, c => c is Rail ? null : c is VoltageSource v ? v.Cathode : null),
             };
             d[Normalize("voltage")] = new WhitelistEntry("voltage", MakeVoltageSource, vsourcePins);
 
             // Current source
             var iPins = new List<PinSpec> {
-                new PinSpec(TwoTerminalPin1, c => ((CurrentSource)c).Anode),
-                new PinSpec(TwoTerminalPin2, c => ((CurrentSource)c).Cathode),
+                new PinSpec(SourceTopPin, c => ((CurrentSource)c).Anode),
+                new PinSpec(SourceBottomPin, c => ((CurrentSource)c).Cathode),
             };
             d[Normalize("current")] = new WhitelistEntry("current", MakeCurrentSource, iPins);
 
-            // BJTs
+            // NPN BJT: top pin = collector, bottom = emitter.
             var npnPins = new List<PinSpec> {
-                new PinSpec(BjtCollector, c => ((BipolarJunctionTransistor)c).Collector),
+                new PinSpec(BjtTop, c => ((BipolarJunctionTransistor)c).Collector),
                 new PinSpec(BjtBase, c => ((BipolarJunctionTransistor)c).Base),
-                new PinSpec(BjtEmitter, c => ((BipolarJunctionTransistor)c).Emitter),
+                new PinSpec(BjtBottom, c => ((BipolarJunctionTransistor)c).Emitter),
+            };
+            // PNP BJT: same pin positions, but in LTSpice's pnp.asy the top pin is the emitter
+            // and the bottom is the collector.
+            var pnpPins = new List<PinSpec> {
+                new PinSpec(BjtTop, c => ((BipolarJunctionTransistor)c).Emitter),
+                new PinSpec(BjtBase, c => ((BipolarJunctionTransistor)c).Base),
+                new PinSpec(BjtBottom, c => ((BipolarJunctionTransistor)c).Collector),
             };
             d[Normalize("npn")] = new WhitelistEntry("npn", (s, p, r) => MakeBjt(s, p, r, BjtType.NPN), npnPins);
-            d[Normalize("pnp")] = new WhitelistEntry("pnp", (s, p, r) => MakeBjt(s, p, r, BjtType.PNP), npnPins);
+            d[Normalize("pnp")] = new WhitelistEntry("pnp", (s, p, r) => MakeBjt(s, p, r, BjtType.PNP), pnpPins);
 
-            // JFETs
-            var jfetPins = new List<PinSpec> {
-                new PinSpec(JfetDrain, c => ((JunctionFieldEffectTransistor)c).Drain),
+            // N-JFET: top = drain, bottom = source.
+            var njfPins = new List<PinSpec> {
+                new PinSpec(JfetTop, c => ((JunctionFieldEffectTransistor)c).Drain),
                 new PinSpec(JfetGate, c => ((JunctionFieldEffectTransistor)c).Gate),
-                new PinSpec(JfetSource, c => ((JunctionFieldEffectTransistor)c).Source),
+                new PinSpec(JfetBottom, c => ((JunctionFieldEffectTransistor)c).Source),
             };
-            d[Normalize("njf")] = new WhitelistEntry("njf", (s, p, r) => MakeJfet(s, p, r, JfetType.N), jfetPins);
-            d[Normalize("pjf")] = new WhitelistEntry("pjf", (s, p, r) => MakeJfet(s, p, r, JfetType.P), jfetPins);
+            // P-JFET: pin positions same, but pjf.asy labels them with drain/source swapped.
+            var pjfPins = new List<PinSpec> {
+                new PinSpec(JfetTop, c => ((JunctionFieldEffectTransistor)c).Source),
+                new PinSpec(JfetGate, c => ((JunctionFieldEffectTransistor)c).Gate),
+                new PinSpec(JfetBottom, c => ((JunctionFieldEffectTransistor)c).Drain),
+            };
+            d[Normalize("njf")] = new WhitelistEntry("njf", (s, p, r) => MakeJfet(s, p, r, JfetType.N), njfPins);
+            d[Normalize("pjf")] = new WhitelistEntry("pjf", (s, p, r) => MakeJfet(s, p, r, JfetType.P), pjfPins);
 
             // Op-amps
             var opampPins = new List<PinSpec> {
@@ -508,10 +530,15 @@ namespace Circuit.LTSpiceImport
             expr = null;
             if (string.IsNullOrWhiteSpace(s)) return false;
             string trimmed = s.Trim();
-            if (!trimmed.StartsWith("SINE", StringComparison.OrdinalIgnoreCase)) return false;
+            // LTSpice accepts both SINE(...) and SIN(...) for the sine source.
             int open = trimmed.IndexOf('(');
+            if (open <= 0) return false;
+            string head = trimmed.Substring(0, open).Trim();
+            if (!head.Equals("SINE", StringComparison.OrdinalIgnoreCase) &&
+                !head.Equals("SIN", StringComparison.OrdinalIgnoreCase))
+                return false;
             int close = trimmed.LastIndexOf(')');
-            if (open < 0 || close < 0 || close <= open) return false;
+            if (close <= open) return false;
             string body = trimmed.Substring(open + 1, close - open - 1).Trim();
             string[] parts = body.Split(new[] { ' ', '\t', ',' }, StringSplitOptions.RemoveEmptyEntries);
             if (parts.Length < 3) return false;
