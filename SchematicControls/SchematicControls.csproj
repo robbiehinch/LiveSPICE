@@ -1,6 +1,6 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk.WindowsDesktop">
   <PropertyGroup>
-    <TargetFrameworks>net6.0-windows</TargetFrameworks>
+    <TargetFrameworks>net10.0-windows</TargetFrameworks>
     <OutputType>Library</OutputType>
     <RootNamespace>SchematicControl</RootNamespace>
     <AssemblyName>SchematicControl</AssemblyName>
@@ -13,9 +13,5 @@
   <ItemGroup>
     <ProjectReference Include="..\Circuit\Circuit.csproj" />
     <ProjectReference Include="..\Util\Util.csproj" />
-  </ItemGroup>
-  <ItemGroup>
-    <PackageReference Include="Microsoft.CSharp" Version="4.7.0" />
-    <PackageReference Include="System.Data.DataSetExtensions" Version="4.5.0" />
   </ItemGroup>
 </Project>
