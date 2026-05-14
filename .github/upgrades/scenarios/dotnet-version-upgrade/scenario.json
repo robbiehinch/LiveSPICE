@@ -3,12 +3,13 @@
   "operationId": "f90c3680-572a-4ad6-adb2-89a4bca7c674",
   "description": "Upgrade .NET projects to newer .NET versions",
   "startTime": "2026-05-14T08:46:09.6358524Z",
-  "lastUpdateTime": "2026-05-14T09:58:29.8615042Z",
+  "lastUpdateTime": "2026-05-14T10:01:21.6094741Z",
   "stage": "Assessment",
   "properties": {
     "task:01-foundation-libs:startedAt": "2026-05-14T09:56:01.5992271Z",
-    "currentTask": "03-upper-libs-and-tests",
+    "currentTask": "04-livespicevst",
     "UpgradeTargetFramework": "net10.0",
+    "task:04-livespicevst:startedAt": "2026-05-14T10:00:27.2757930Z",
     "task:03-upper-libs-and-tests:startedAt": "2026-05-14T09:58:29.8615042Z",
     "task:02-mid-level-libs:startedAt": "2026-05-14T09:57:22.3688304Z"
   },
