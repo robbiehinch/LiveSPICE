@@ -1,6 +1,6 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk.WindowsDesktop">
   <PropertyGroup>
-    <TargetFrameworks>net6.0-windows</TargetFrameworks>
+    <TargetFrameworks>net10.0-windows</TargetFrameworks>
     <OutputType>WinExe</OutputType>
     <PublishUrl>publish\</PublishUrl>
     <Install>true</Install>
@@ -103,8 +103,6 @@
   <ItemGroup>
     <PackageReference Include="Dirkster.AvalonDock" Version="4.40.0" />
     <PackageReference Include="DotNetProjects.Extended.Wpf.Toolkit" Version="4.6.86" />
-    <PackageReference Include="Microsoft.CSharp" Version="4.7.0" />
-    <PackageReference Include="System.Data.DataSetExtensions" Version="4.5.0" />
     <PackageReference Include="AgileObjects.NetStandardPolyfills" Version="1.4.1" />
     <PackageReference Include="AgileObjects.ReadableExpressions" Version="2.5.1" />
     <PackageReference Include="MathNet.Numerics" Version="4.12.0" />
