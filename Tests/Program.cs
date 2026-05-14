@@ -1,6 +1,7 @@
 ﻿using System;
 using System.IO;
 using Circuit;
+using Circuit.LTSpiceImport;
 using System.Collections.Generic;
 using Util;
 using System.Linq;
@@ -23,6 +24,9 @@ namespace Tests
                                                .WithCommand("benchmark", "Run benchmarks", c => c
                                                     .WithArgument<string>("pattern", "Glob pattern for files to benchmark")
                                                     .WithHandler(CommandHandler.Create<string, int, int, int>(Benchmark)))
+                                               .WithCommand("import-ltspice", "Import LTSpice .asc files and verify they build", c => c
+                                                    .WithArgument<string>("pattern", "Glob pattern for .asc files to import")
+                                                    .WithHandler(CommandHandler.Create<string>(ImportLTSpice)))
                                                .WithGlobalOption(new Option<int>("--sampleRate", () => 48000, "Sample Rate"))
                                                .WithGlobalOption(new Option<int>("--oversample", () => 8, "Oversample"))
                                                .WithGlobalOption(new Option<int>("--iterations", () => 8, "Iterations"));
@@ -66,6 +70,55 @@ namespace Tests
                     name = name.Substring(0, 39);
                 System.Console.WriteLine(fmt, name, analyzeTime * 1000, solveTime * 1000, simRate / 1000, simRate / sampleRate);
             }
+        }
+
+        public static void ImportLTSpice(string pattern)
+        {
+            var log = new ConsoleLog() { Verbosity = MessageType.Info };
+            int failed = 0;
+            int passed = 0;
+            foreach (var filename in Globber.Glob(pattern))
+            {
+                log.WriteLine(MessageType.Info, "Importing {0}", filename);
+                try
+                {
+                    var (schematic, report) = LTSpiceImporter.Import(filename);
+                    foreach (var entry in report.Entries)
+                        log.WriteLine(
+                            entry.Severity == ImportSeverity.Error ? MessageType.Error :
+                            entry.Severity == ImportSeverity.Warning ? MessageType.Warning :
+                            MessageType.Info,
+                            "  {0}", entry.ToString());
+
+                    if (report.HasErrors)
+                    {
+                        log.WriteLine(MessageType.Error, "  Import failed: report contained errors");
+                        failed++;
+                        continue;
+                    }
+
+                    // Round-trip via .schx serialization.
+                    string tmp = Path.Combine(Path.GetTempPath(),
+                        "ltspice_" + Path.GetFileNameWithoutExtension(filename) + "_" + Guid.NewGuid().ToString("N") + ".schx");
+                    schematic.Save(tmp);
+                    var reloaded = Schematic.Load(tmp, log);
+                    File.Delete(tmp);
+
+                    // Build the reloaded schematic — this exercises the same path Tests uses.
+                    reloaded.Build(log);
+
+                    log.WriteLine(MessageType.Info, "  OK ({0} symbols, {1} wires)",
+                        schematic.Symbols.Count(), schematic.Wires.Count());
+                    passed++;
+                }
+                catch (Exception ex)
+                {
+                    log.WriteLine(MessageType.Error, "  Exception: {0}", ex.Message);
+                    failed++;
+                }
+            }
+            log.WriteLine(MessageType.Info, "import-ltspice: {0} passed, {1} failed", passed, failed);
+            if (failed > 0) Environment.ExitCode = 1;
         }
 
         private static IEnumerable<Circuit.Circuit> GetCircuits(string glob, ILog log) => Globber.Glob(glob).Select(filename =>

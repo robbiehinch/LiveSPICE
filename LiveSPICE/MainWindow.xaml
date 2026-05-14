@@ -13,6 +13,7 @@
         <CommandBinding Command="ApplicationCommands.Open" Executed="Open_Executed" />
         <CommandBinding Command="{x:Static ls:Commands.SaveAll}" Executed="SaveAll_Executed" />
         <CommandBinding Command="ApplicationCommands.Close" CanExecute="Close_CanExecute" Executed="Close_Executed" />
+        <CommandBinding Command="{x:Static ls:Commands.ImportLTSpice}" Executed="ImportLTSpice_Executed" />
 
         <CommandBinding Command="{x:Static ls:Commands.Simulate}" Executed="Simulate_Executed" CanExecute="Simulate_CanExecute" />
 
@@ -36,6 +37,8 @@
                 <ls:MenuItemIcon CommandImage="ApplicationCommands.SaveAs" />
                 <ls:MenuItemIcon CommandImage="{x:Static ls:Commands.SaveAll}" />
                 <MenuItem Command="ApplicationCommands.Close" />
+                <Separator />
+                <MenuItem Command="{x:Static ls:Commands.ImportLTSpice}" />
                 <Separator />
                 <ls:MruMenuItem Header="Recent Files" MruClick="OnMruClick" />
                 <Separator />

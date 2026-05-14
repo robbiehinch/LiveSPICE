@@ -16,6 +16,8 @@ namespace LiveSPICE
 
         public static RoutedCommand Rename { get { return rename; } }
 
+        public static RoutedCommand ImportLTSpice { get { return importLTSpice; } }
+
         static Commands()
         {
             exit = new RoutedUICommand("Exit", "Exit", typeof(Commands));
@@ -31,12 +33,15 @@ namespace LiveSPICE
 
             rename = new RoutedUICommand("Rename", "Rename", typeof(Commands));
             rename.InputGestures.Add(new KeyGesture(Key.F2));
+
+            importLTSpice = new RoutedUICommand("Import LTSpice...", "Import LTSpice", typeof(Commands));
         }
         static RoutedCommand exit;
         static RoutedCommand saveAll;
         static RoutedCommand zoomFit;
         static RoutedCommand simulate;
         static RoutedCommand rename;
+        static RoutedCommand importLTSpice;
     }
 
     public static class Images

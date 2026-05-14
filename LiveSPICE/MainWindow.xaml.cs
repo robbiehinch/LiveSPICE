@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.ComponentModel;
 using System.Linq;
 using System.Reflection;
+using System.Text;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
@@ -165,6 +166,68 @@ namespace LiveSPICE
             catch (Exception ex)
             {
                 MessageBox.Show(this, ex.Message, "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
+
+        private void ImportLTSpice_Executed(object sender, ExecutedRoutedEventArgs e)
+        {
+            try
+            {
+                OpenFileDialog dlg = new OpenFileDialog()
+                {
+                    Filter = "LTSpice Schematics|*.asc|All Files|*.*",
+                    DefaultExt = "asc",
+                    Multiselect = false,
+                    Title = "Import LTSpice Schematic",
+                };
+                dlg.CustomPlaces.Add(new FileDialogCustomPlace(App.Current.UserDocuments.FullName));
+                if (!(dlg.ShowDialog(this) ?? false))
+                    return;
+
+                Circuit.LTSpiceImport.IPartLookup lookup = new ComponentLibraryPartLookup(Components);
+                var (schematic, report) = Circuit.LTSpiceImport.LTSpiceImporter.Import(dlg.FileName, lookup);
+
+                if (report.Entries.Any())
+                {
+                    StringBuilder sb = new StringBuilder();
+                    sb.AppendLine("Import completed with messages:");
+                    sb.AppendLine();
+                    foreach (var entry in report.Entries)
+                        sb.AppendLine(entry.ToString());
+                    MessageBox.Show(this, sb.ToString(), "LTSpice Import Report",
+                        MessageBoxButton.OK,
+                        report.HasErrors ? MessageBoxImage.Error :
+                        report.HasWarnings ? MessageBoxImage.Warning : MessageBoxImage.Information);
+                    if (report.HasErrors)
+                        return;
+                }
+
+                AddViewer(new SchematicEditor(schematic));
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show(this, ex.Message, "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
+
+        // Adapter exposing the ComponentLibrary as an IPartLookup so the importer can
+        // resolve SPICE model names (e.g. "1N4148") to fully-parameterised Components.
+        private sealed class ComponentLibraryPartLookup : Circuit.LTSpiceImport.IPartLookup
+        {
+            private readonly ComponentLibrary library;
+            public ComponentLibraryPartLookup(ComponentLibrary library) { this.library = library; }
+
+            public Circuit.Component TryGetByPartNumber(string partNumber)
+            {
+                if (string.IsNullOrWhiteSpace(partNumber) || library == null) return null;
+                foreach (LiveSPICE.Component i in library.Root.Components)
+                {
+                    Circuit.Component c = i.Instance;
+                    if (c != null && !string.IsNullOrEmpty(c.PartNumber) &&
+                        string.Equals(c.PartNumber, partNumber, StringComparison.OrdinalIgnoreCase))
+                        return c;
+                }
+                return null;
             }
         }
         private void SaveAll_Executed(object sender, ExecutedRoutedEventArgs e)
