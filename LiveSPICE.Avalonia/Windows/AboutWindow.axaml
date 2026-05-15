@@ -1,0 +1,21 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="LiveSPICE.Avalonia.Windows.AboutWindow"
+        Title="About LiveSPICE"
+        Width="480" Height="280"
+        Background="#1e1e1e"
+        WindowStartupLocation="CenterOwner"
+        CanResize="False">
+    <Grid RowDefinitions="*,Auto" Margin="20">
+        <StackPanel Grid.Row="0" Spacing="10">
+            <TextBlock Text="LiveSPICE" FontSize="22" FontWeight="Bold" Foreground="#cdcdcd" />
+            <TextBlock Text="Real-time SPICE-like circuit simulator for guitar amps and effects."
+                       Foreground="#cdcdcd" TextWrapping="Wrap" />
+            <TextBlock x:Name="versionText" Foreground="#9cdcfe" />
+            <TextBlock Text="Project site: http://www.livespice.org" Foreground="#9cdcfe" />
+            <TextBlock Text="Avalonia UI head — cross-platform foundation."
+                       Foreground="#888" FontStyle="Italic" Margin="0,8,0,0" />
+        </StackPanel>
+        <Button Grid.Row="1" Content="Close" HorizontalAlignment="Right" MinWidth="80" Click="CloseClicked" />
+    </Grid>
+</Window>

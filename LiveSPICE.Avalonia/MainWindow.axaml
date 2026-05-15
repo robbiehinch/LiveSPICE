@@ -27,6 +27,9 @@
                 <MenuItem Header="_Selection" Click="ToolSelectionClicked" />
                 <MenuItem Header="_Wire" Click="ToolWireClicked" />
             </MenuItem>
+            <MenuItem Header="_Simulate">
+                <MenuItem Header="_Run..." InputGesture="F5" Click="SimulateClicked" />
+            </MenuItem>
             <MenuItem Header="_Help">
                 <MenuItem Header="_About" Click="AboutClicked" />
             </MenuItem>
@@ -42,7 +45,7 @@
                     <Grid RowDefinitions="Auto,*">
                         <TextBlock Grid.Row="0" Text="Properties" Foreground="#cdcdcd" FontWeight="SemiBold" />
                         <ScrollViewer Grid.Row="1">
-                            <TextBlock x:Name="propertiesText" Foreground="#cdcdcd" TextWrapping="Wrap" FontFamily="Consolas" />
+                            <c:PropertyPane x:Name="propertyPane" />
                         </ScrollViewer>
                     </Grid>
                 </Border>

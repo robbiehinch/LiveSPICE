@@ -26,6 +26,10 @@
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\Audio\Audio.csproj" />
+    <!-- Audio backends discovered by reflection at runtime via Audio.Driver.Drivers.
+         Referenced here purely so the assemblies are loaded. -->
+    <ProjectReference Include="..\WaveAudio\WaveAudio.csproj" />
+    <ProjectReference Include="..\Asio\Asio.csproj" Condition="$([MSBuild]::IsOSPlatform('Windows'))" />
     <ProjectReference Include="..\Circuit\Circuit.csproj" />
     <ProjectReference Include="..\ComputerAlgebra\ComputerAlgebra\ComputerAlgebra.csproj" />
     <ProjectReference Include="..\SchematicControls.Abstractions\SchematicControls.Abstractions.csproj" />

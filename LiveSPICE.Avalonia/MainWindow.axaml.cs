@@ -1,16 +1,14 @@
 using System;
 using System.Collections.Generic;
-using System.ComponentModel;
 using System.IO;
 using System.Linq;
-using System.Reflection;
-using System.Text;
 using System.Threading.Tasks;
 using Avalonia.Controls;
 using Avalonia.Interactivity;
 using Avalonia.Platform.Storage;
 using LiveSPICE.Avalonia.Controls;
 using LiveSPICE.Avalonia.Services;
+using LiveSPICE.Avalonia.Windows;
 using SchematicControls.Editor;
 using SchematicControls.Editor.Tools;
 using Util;
@@ -55,36 +53,18 @@ namespace LiveSPICE.Avalonia
         private void UpdateProperties()
         {
             Circuit.Element first = canvas.SelectedElements.FirstOrDefault();
-            if (first == null)
+            if (first is Circuit.Symbol sym)
             {
-                propertiesText.Text = "(no selection)";
-                return;
+                propertyPane.Bind(sym.Component, canvas.Edits);
             }
-            propertiesText.Text = DescribeElement(first);
-        }
-
-        private static string DescribeElement(Circuit.Element e)
-        {
-            StringBuilder sb = new StringBuilder();
-            sb.AppendLine(e.GetType().Name);
-            sb.AppendLine(e.ToString());
-            if (e is Circuit.Symbol sym)
+            else if (first != null)
             {
-                Circuit.Component c = sym.Component;
-                sb.AppendLine();
-                sb.AppendLine("Component: " + c.GetType().Name);
-                foreach (PropertyInfo p in c.GetType()
-                    .GetProperties(BindingFlags.Public | BindingFlags.Instance)
-                    .Where(j => j.GetCustomAttribute<Circuit.Serialize>() != null &&
-                                (j.GetCustomAttribute<BrowsableAttribute>() == null ||
-                                 j.GetCustomAttribute<BrowsableAttribute>().Browsable)))
-                {
-                    object v;
-                    try { v = p.GetValue(c, null); } catch { continue; }
-                    sb.Append(p.Name).Append(" = ").AppendLine(v?.ToString() ?? "(null)");
-                }
+                propertyPane.Show(first.GetType().Name + ": " + first.ToString());
             }
-            return sb.ToString();
+            else
+            {
+                propertyPane.Show("(no selection)");
+            }
         }
 
         private void OnLibraryComponentClick(Circuit.Component proto)
@@ -234,9 +214,24 @@ namespace LiveSPICE.Avalonia
             UpdateToolStatus();
         }
 
-        private void AboutClicked(object sender, RoutedEventArgs e)
+        private async void AboutClicked(object sender, RoutedEventArgs e)
         {
-            statusText.Text = "LiveSPICE Avalonia head — Phase 4 build.";
+            AboutWindow w = new AboutWindow();
+            await w.ShowDialog(this);
+        }
+
+        private void SimulateClicked(object sender, RoutedEventArgs e)
+        {
+            if (canvas.Schematic == null) { statusText.Text = "No schematic to simulate."; return; }
+            try
+            {
+                LiveSimulationWindow win = new LiveSimulationWindow(canvas.Schematic, settings);
+                win.Show(this);
+            }
+            catch (Exception ex)
+            {
+                statusText.Text = "Open simulation failed: " + ex.Message;
+            }
         }
 
         // ---------- MRU ----------
