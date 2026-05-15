@@ -83,12 +83,15 @@ namespace Circuit
 
             Expression Vgds_t0 = Vgds - Vt0;
 
-            Expression id = Call.Sign(Vds) * (Vgds >= Vt0) * Beta * (1 + Lambda * AbsVds) *
+            // Linear region uses Vds directly (not Sign(Vds)*AbsVds) so the symbolic
+            // Jacobian w.r.t. V_drain stays non-zero at Vds=0; otherwise the operating-
+            // point Newton solve starting from V_all=0 latches the JFET in cutoff.
+            Expression id = (Vgds >= Vt0) * Beta * (1 + Lambda * AbsVds) *
                 Call.If(AbsVds < Vgds_t0,
-                    // Linear region.
-                    AbsVds * (2 * Vgds_t0 - 1),
+                    // Linear region: Id = Beta * Vds * (2*(Vgs-Vt) - Vds)
+                    Vds * (2 * Vgds_t0 - AbsVds),
                     // Saturation region.
-                    Vgds_t0 ^ 2);
+                    Call.Sign(Vds) * (Vgds_t0 ^ 2));
 
             id = Mna.AddUnknownEqualTo("i" + Name + "d", id);
             CurrentSource.Analyze(Mna, Drain, Source, id);
