@@ -1,0 +1,62 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:svc="clr-namespace:LiveSPICE.Avalonia.Services"
+             x:Class="LiveSPICE.Avalonia.Controls.ComponentLibrary"
+             Background="#252526">
+    <Grid RowDefinitions="Auto,*">
+        <Grid Grid.Row="0" ColumnDefinitions="*,Auto" Margin="6">
+            <TextBox x:Name="filterBox" Grid.Column="0" Watermark="Filter..." />
+            <Button Grid.Column="1" Content="x" Margin="4,0,0,0" Click="ClearFilterClicked" />
+        </Grid>
+        <ScrollViewer Grid.Row="1" Padding="6,0,6,6">
+            <Grid>
+                <!-- Tree view (visible when filter is empty) -->
+                <TreeView x:Name="tree">
+                    <TreeView.ItemTemplate>
+                        <TreeDataTemplate ItemsSource="{Binding Children}"
+                                          DataType="svc:CatalogCategory">
+                            <StackPanel>
+                                <TextBlock Text="{Binding Name}" FontWeight="SemiBold" />
+                                <ItemsControl ItemsSource="{Binding Components}" Margin="8,2,0,0">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate DataType="svc:ComponentEntry">
+                                            <Button HorizontalAlignment="Stretch"
+                                                    HorizontalContentAlignment="Left"
+                                                    Background="Transparent"
+                                                    BorderThickness="0"
+                                                    Padding="2"
+                                                    Click="ComponentClicked"
+                                                    Tag="{Binding}"
+                                                    IsVisible="{Binding IsVisible}"
+                                                    ToolTip.Tip="{Binding Description}">
+                                                <TextBlock Text="{Binding Name}" Foreground="#cdcdcd" />
+                                            </Button>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                            </StackPanel>
+                        </TreeDataTemplate>
+                    </TreeView.ItemTemplate>
+                </TreeView>
+                <!-- Flat filtered list (visible when filter is non-empty) -->
+                <ItemsControl x:Name="filtered" IsVisible="False">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate DataType="svc:ComponentEntry">
+                            <Button HorizontalAlignment="Stretch"
+                                    HorizontalContentAlignment="Left"
+                                    Background="Transparent"
+                                    BorderThickness="0"
+                                    Padding="2"
+                                    Click="ComponentClicked"
+                                    Tag="{Binding}"
+                                    IsVisible="{Binding IsVisible}"
+                                    ToolTip.Tip="{Binding Description}">
+                                <TextBlock Text="{Binding Name}" Foreground="#cdcdcd" />
+                            </Button>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+            </Grid>
+        </ScrollViewer>
+    </Grid>
+</UserControl>

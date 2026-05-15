@@ -1,0 +1,14 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <OutputType>Library</OutputType>
+    <RootNamespace>SchematicControls.Editor</RootNamespace>
+    <AssemblyName>SchematicControls.Editor</AssemblyName>
+    <Nullable>disable</Nullable>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\Circuit\Circuit.csproj" />
+    <ProjectReference Include="..\Util\Util.csproj" />
+    <ProjectReference Include="..\SchematicControls.Abstractions\SchematicControls.Abstractions.csproj" />
+  </ItemGroup>
+</Project>

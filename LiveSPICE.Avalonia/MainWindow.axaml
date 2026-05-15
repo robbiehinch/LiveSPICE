@@ -1,0 +1,66 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:c="clr-namespace:LiveSPICE.Avalonia.Controls"
+        x:Class="LiveSPICE.Avalonia.MainWindow"
+        Title="LiveSPICE"
+        Width="1280" Height="820">
+    <Grid RowDefinitions="Auto,Auto,*,Auto">
+        <Menu Grid.Row="0">
+            <MenuItem Header="_File">
+                <MenuItem Header="_New" InputGesture="Ctrl+N" Click="NewClicked" />
+                <MenuItem Header="_Open..." InputGesture="Ctrl+O" Click="OpenClicked" />
+                <MenuItem Header="_Save" InputGesture="Ctrl+S" Click="SaveClicked" />
+                <MenuItem Header="Save _As..." InputGesture="Ctrl+Shift+S" Click="SaveAsClicked" />
+                <Separator />
+                <MenuItem x:Name="recentMenu" Header="_Recent Files" />
+                <Separator />
+                <MenuItem Header="E_xit" Click="ExitClicked" />
+            </MenuItem>
+            <MenuItem Header="_Edit">
+                <MenuItem Header="_Undo" InputGesture="Ctrl+Z" Click="UndoClicked" />
+                <MenuItem Header="_Redo" InputGesture="Ctrl+Y" Click="RedoClicked" />
+                <Separator />
+                <MenuItem Header="_Delete" InputGesture="Delete" Click="DeleteClicked" />
+                <MenuItem Header="Select _All" InputGesture="Ctrl+A" Click="SelectAllClicked" />
+            </MenuItem>
+            <MenuItem Header="_Tools">
+                <MenuItem Header="_Selection" Click="ToolSelectionClicked" />
+                <MenuItem Header="_Wire" Click="ToolWireClicked" />
+            </MenuItem>
+            <MenuItem Header="_Help">
+                <MenuItem Header="_About" Click="AboutClicked" />
+            </MenuItem>
+        </Menu>
+        <Border Grid.Row="1" Background="#252526" Padding="6,2">
+            <TextBlock x:Name="toolStatus" Foreground="#9cdcfe" Text="Tool: Selection" />
+        </Border>
+        <Grid Grid.Row="2" ColumnDefinitions="280,2,*,2,300">
+            <Grid Grid.Column="0" RowDefinitions="*,2,200">
+                <c:ComponentLibrary x:Name="library" Grid.Row="0" />
+                <GridSplitter Grid.Row="1" Background="#3c3c3c" Height="2" HorizontalAlignment="Stretch" />
+                <Border Grid.Row="2" Background="#252526" Padding="6">
+                    <Grid RowDefinitions="Auto,*">
+                        <TextBlock Grid.Row="0" Text="Properties" Foreground="#cdcdcd" FontWeight="SemiBold" />
+                        <ScrollViewer Grid.Row="1">
+                            <TextBlock x:Name="propertiesText" Foreground="#cdcdcd" TextWrapping="Wrap" FontFamily="Consolas" />
+                        </ScrollViewer>
+                    </Grid>
+                </Border>
+            </Grid>
+            <GridSplitter Grid.Column="1" Background="#3c3c3c" Width="2" VerticalAlignment="Stretch" />
+            <c:SchematicView x:Name="schematicView" Grid.Column="2" />
+            <GridSplitter Grid.Column="3" Background="#3c3c3c" Width="2" VerticalAlignment="Stretch" />
+            <Border Grid.Column="4" Background="#252526" Padding="6">
+                <Grid RowDefinitions="Auto,*">
+                    <TextBlock Grid.Row="0" Text="Log" Foreground="#cdcdcd" FontWeight="SemiBold" />
+                    <ScrollViewer Grid.Row="1">
+                        <TextBlock x:Name="logText" Foreground="#cdcdcd" TextWrapping="Wrap" FontFamily="Consolas" />
+                    </ScrollViewer>
+                </Grid>
+            </Border>
+        </Grid>
+        <Border Grid.Row="3" Background="#252526" Padding="6,2">
+            <TextBlock x:Name="statusText" Foreground="#cdcdcd" Text="Ready" />
+        </Border>
+    </Grid>
+</Window>

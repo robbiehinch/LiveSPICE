@@ -1,0 +1,48 @@
+name: Test (macOS)
+on:
+- push
+- pull_request
+- workflow_dispatch
+env:
+  DOTNET_CLI_TELEMETRY_OPTOUT: '1'
+
+jobs:
+  test:
+    name: Test on macOS
+    runs-on: macos-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          submodules: true
+      - uses: actions/setup-dotnet@v4
+        with:
+          # CI on Windows still pins 6.0.x / 8.0.x while the upgrade is in flight.
+          # This macOS leg targets net10.0 only — the WPF apps don't build here, but
+          # the portable libraries and the .schx test runner do.
+          dotnet-version: |
+            10.0.x
+      # The Tests project currently targets net10.0-windows because of System.Windows.Forms
+      # plot helpers (Tests/Plotting/*.cs). To run on macOS those plotting helpers either
+      # need to compile out or move behind a target-framework guard. Until that work
+      # lands this job just verifies that the portable libraries build cleanly here.
+      - name: Restore
+        run: dotnet restore SchematicControls.Abstractions/SchematicControls.Abstractions.csproj
+                              SchematicControls.Editor/SchematicControls.Editor.csproj
+                              CoreAudio/CoreAudio.csproj
+                              LiveSPICE.Avalonia/LiveSPICE.Avalonia.csproj
+                              Circuit/Circuit.csproj
+                              Audio/Audio.csproj
+                              ComputerAlgebra/ComputerAlgebra/ComputerAlgebra.csproj
+                              Util/Util.csproj
+      - name: Build portable libraries
+        run: |
+          dotnet build Circuit/Circuit.csproj -c Release -p:UseSharedCompilation=false
+          dotnet build Audio/Audio.csproj -c Release -p:UseSharedCompilation=false
+          dotnet build SchematicControls.Abstractions/SchematicControls.Abstractions.csproj -c Release -p:UseSharedCompilation=false
+          dotnet build SchematicControls.Editor/SchematicControls.Editor.csproj -c Release -p:UseSharedCompilation=false
+          dotnet build CoreAudio/CoreAudio.csproj -c Release -p:UseSharedCompilation=false
+      - name: Build LiveSPICE.Avalonia
+        run: dotnet build LiveSPICE.Avalonia/LiveSPICE.Avalonia.csproj -c Release -p:UseSharedCompilation=false
+      # TODO: once Tests/Plotting/* is decoupled from System.Windows.Forms, add:
+      #   dotnet run --project Tests -c Release --framework net10.0 test "Circuits/*.schx"

@@ -1,0 +1,32 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <OutputType>Library</OutputType>
+    <RootNamespace>CoreAudio</RootNamespace>
+    <AssemblyName>CoreAudio</AssemblyName>
+    <Nullable>disable</Nullable>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <!--
+      Native miniaudio binaries are NOT checked in yet. The CI step that produces this
+      project's nupkg / publish output needs to drop libminiaudio.dylib into
+      runtimes/osx-arm64/native/ and runtimes/osx-x64/native/. See the upgrade plan,
+      Tier 3, for the open question on bundling vs. building from source.
+    -->
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\Audio\Audio.csproj" />
+    <ProjectReference Include="..\Util\Util.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="runtimes\osx-arm64\native\libminiaudio.dylib" Condition="Exists('runtimes\osx-arm64\native\libminiaudio.dylib')">
+      <Pack>true</Pack>
+      <PackagePath>runtimes/osx-arm64/native</PackagePath>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Include="runtimes\osx-x64\native\libminiaudio.dylib" Condition="Exists('runtimes\osx-x64\native\libminiaudio.dylib')">
+      <Pack>true</Pack>
+      <PackagePath>runtimes/osx-x64/native</PackagePath>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+  </ItemGroup>
+</Project>

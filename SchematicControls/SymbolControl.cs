@@ -9,7 +9,16 @@ using System.Windows.Controls;
 using System.Windows.Documents;
 using System.Windows.Input;
 using System.Windows.Media;
+using SchematicControls.Wpf;
 using Util;
+using AbsColor = SchematicControls.Abstractions.DrawColor;
+using AbsEdgeStyle = SchematicControls.Abstractions.EdgeStyle;
+using AbsDashStyle = SchematicControls.Abstractions.DashStyle;
+using AbsLineCap = SchematicControls.Abstractions.LineCap;
+using AbsTextStyle = SchematicControls.Abstractions.TextStyle;
+using AbsDrawMatrix = SchematicControls.Abstractions.DrawMatrix;
+using AbsFontWeight = SchematicControls.Abstractions.FontWeight;
+using AbsRenderer = SchematicControls.Abstractions.SymbolLayoutRenderer;
 
 namespace SchematicControls
 {
@@ -18,8 +27,6 @@ namespace SchematicControls
     /// </summary>
     public class SymbolControl : ElementControl
     {
-        private static readonly Pen TextOutline = new Pen(new SolidColorBrush(Color.FromArgb(32, 0, 0, 0)), 0.2);
-
         static SymbolControl()
         {
             DefaultStyleKeyProperty.OverrideMetadata(typeof(SymbolControl), new FrameworkPropertyMetadata(typeof(SymbolControl)));
@@ -136,106 +143,30 @@ namespace SchematicControls
             Circuit.SymbolLayout Layout, DrawingContext Context, Matrix Tx, Pen Pen, FontFamily FontFamily,
             FontWeight FontWeight, double FontSize, double PixelsPerDip)
         {
-            foreach (Circuit.SymbolLayout.Shape i in Layout.Lines)
-                Context.DrawLine(
-                    Pen ?? MapToPen(i.Edge),
-                    T(Tx, i.x1),
-                    T(Tx, i.x2));
-            foreach (Circuit.SymbolLayout.Shape i in Layout.Rectangles)
-                Context.DrawRectangle(
-                    (i.Fill && Pen == null) ? MapToBrush(i.Edge) : null,
-                    Pen ?? MapToPen(i.Edge),
-                    new Rect(T(Tx, i.x1), T(Tx, i.x2)));
-            foreach (Circuit.SymbolLayout.Shape i in Layout.Ellipses)
-            {
-                Brush brush = (i.Fill && Pen == null) ? MapToBrush(i.Edge) : null;
-                Pen pen = Pen ?? MapToPen(i.Edge);
-                Point p1 = T(Tx, i.x1);
-                Point p2 = T(Tx, i.x2);
+            WpfDrawingContext adapter = new WpfDrawingContext(Context);
+            WpfDrawingContextFactory factory = new WpfDrawingContextFactory(PixelsPerDip);
 
-                Context.DrawEllipse(
-                    brush, pen,
-                    new Point((p1.X + p2.X) / 2, (p1.Y + p2.Y) / 2), (p2.X - p1.X) / 2, (p2.Y - p1.Y) / 2);
-            }
-            foreach (Circuit.SymbolLayout.Curve i in Layout.Curves)
-            {
-                IEnumerator<Circuit.Point> e = i.x.AsEnumerable().GetEnumerator();
-                if (!e.MoveNext())
-                    return;
+            AbsEdgeStyle? overrideEdge = Pen == null ? (AbsEdgeStyle?)null : WpfPenToEdge(Pen);
+            AbsTextStyle? textStyle = FontFamily == null
+                ? (AbsTextStyle?)null
+                : new AbsTextStyle(
+                    FontFamily.Source,
+                    FontSize,
+                    FontWeight == FontWeights.Bold ? AbsFontWeight.Bold : AbsFontWeight.Normal,
+                    AbsColor.Black);
 
-                Pen pen = Pen ?? MapToPen(i.Edge);
-                Point x1 = T(Tx, e.Current);
-                while (e.MoveNext())
-                {
-                    Point x2 = T(Tx, e.Current);
-                    Context.DrawLine(pen, x1, x2);
-                    x1 = x2;
-                }
-            }
-            foreach (var arc in Layout.Arcs)
-            {
-                var sweepDir = arc.Direction == Circuit.Direction.Clockwise ^ Tx.Determinant > 0d ? SweepDirection.Clockwise : SweepDirection.Counterclockwise;
-                bool isLargeArc = Math.Abs(arc.StartAngle - arc.EndAngle) > Math.PI;
+            AbsDrawMatrix tx = WpfConversions.FromMatrix(Tx);
+            AbsRenderer.Draw(Layout, adapter, factory, tx, overrideEdge, textStyle);
+        }
 
-                var start = T(Tx, arc.Center + (new Circuit.Point(Math.Cos(arc.StartAngle), Math.Sin(arc.StartAngle)) * arc.Radius));
-                var end = T(Tx, arc.Center + (new Circuit.Point(Math.Cos(arc.EndAngle), Math.Sin(arc.EndAngle)) * arc.Radius));
-
-                var arcGeometry = new StreamGeometry();
-                using (var ctx = arcGeometry.Open())
-                {
-                    ctx.BeginFigure(start, false, false);
-                    ctx.ArcTo(end, new Size(Math.Abs(arc.Radius * Tx.M11), Math.Abs(arc.Radius * Tx.M22)), 0, isLargeArc, sweepDir, true, true);
-                }
-                arcGeometry.Freeze();
-                Context.DrawGeometry(null, Pen ?? MapToPen(arc.Type), arcGeometry);
-            }
-
-            if (FontFamily != null)
-            {
-                // Not sure if this matrix has row or column vectors... want the y axis scaling here.
-                double scale = Math.Sqrt(Tx.M11 * Tx.M11 + Tx.M21 * Tx.M21);
-
-                foreach (Circuit.SymbolLayout.Text i in Layout.Texts)
-                {
-                    double size;
-                    switch (i.Size)
-                    {
-                        case Circuit.Size.Small: size = 0.5; break;
-                        case Circuit.Size.Large: size = 1.5; break;
-                        default: size = 1.0; break;
-                    }
-                    FormattedText text = new FormattedText(
-                        i.String,
-                        CultureInfo.CurrentUICulture, FlowDirection.LeftToRight,
-                        new Typeface(FontFamily, FontStyles.Normal, FontWeight, FontStretches.Normal), FontSize * scale * size,
-                        Brushes.Black, PixelsPerDip);
-
-                    Point p = T(Tx, i.x);
-                    Vector p1 = T(Tx, new Circuit.Point(i.x.x - MapAlignment(i.HorizontalAlign), i.x.y + (1 - MapAlignment(i.VerticalAlign)))) - p;
-                    Vector p2 = T(Tx, new Circuit.Point(i.x.x - (1 - MapAlignment(i.HorizontalAlign)), i.x.y + MapAlignment(i.VerticalAlign))) - p;
-
-                    p1.X *= text.Width; p2.X *= text.Width;
-                    p1.Y *= text.Height; p2.Y *= text.Height;
-
-                    Rect rc = new Rect(
-                        Math.Min(p.X + p1.X, p.X - p2.X),
-                        Math.Min(p.Y + p1.Y, p.Y - p2.Y),
-                        text.Width,
-                        text.Height);
-                    if (TextOutline != null)
-                        Context.DrawRectangle(null, TextOutline, rc);
-
-                    Context.DrawText(text, rc.TopLeft);
-                }
-            }
-
-            foreach (Circuit.Terminal i in Layout.Terminals)
-            {
-                Point x = T(Tx, Layout.MapTerminal(i));
-                Vector dx = new Vector(TerminalSize / 2, TerminalSize / 2);
-                Pen pen = MapToPen(i.ConnectedTo is null ? Circuit.EdgeType.Red : Circuit.EdgeType.Wire);
-                Context.DrawRectangle(pen.Brush, pen, new Rect(x - dx, x + dx));
-            }
+        private static AbsEdgeStyle WpfPenToEdge(Pen pen)
+        {
+            AbsColor color = AbsColor.Black;
+            if (pen.Brush is SolidColorBrush scb)
+                color = AbsColor.FromArgb(scb.Color.A, scb.Color.R, scb.Color.G, scb.Color.B);
+            AbsDashStyle dash = pen.DashStyle == DashStyles.Dash ? AbsDashStyle.Dashed : AbsDashStyle.Solid;
+            AbsLineCap cap = pen.StartLineCap == PenLineCap.Round ? AbsLineCap.Round : AbsLineCap.Flat;
+            return new AbsEdgeStyle(color, pen.Thickness, dash, cap);
         }
 
         public static void DrawLayout(
