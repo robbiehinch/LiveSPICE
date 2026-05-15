@@ -32,6 +32,12 @@ namespace Circuit.LTSpiceImport
 
             Schematic schematic = new Schematic();
 
+            // Parse schematic-embedded SPICE `.model` directives first. They override the
+            // caller-supplied part library (the user is declaring "use *these* parameters
+            // for this device") and fall back to it for anything not named in the sheet.
+            SpiceModelLibrary spice = SpiceModelLibrary.Build(sheet.Texts, report);
+            IPartLookup effectiveParts = new ChainedPartLookup(spice, parts);
+
             // Translate symbols.
             foreach (LTSymbol s in sheet.Symbols)
             {
@@ -44,7 +50,7 @@ namespace Circuit.LTSpiceImport
                 Component component;
                 try
                 {
-                    component = entry.Factory(s, parts, report);
+                    component = entry.Factory(s, effectiveParts, report);
                 }
                 catch (Exception ex)
                 {

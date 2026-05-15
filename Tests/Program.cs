@@ -26,7 +26,8 @@ namespace Tests
                                                     .WithHandler(CommandHandler.Create<string, int, int, int>(Benchmark)))
                                                .WithCommand("import-ltspice", "Import LTSpice .asc files and verify they build", c => c
                                                     .WithArgument<string>("pattern", "Glob pattern for .asc files to import")
-                                                    .WithHandler(CommandHandler.Create<string>(ImportLTSpice)))
+                                                    .WithOption<bool>(new[] { "--simulate" }, "Simulate the imported circuit and write stats")
+                                                    .WithHandler(CommandHandler.Create<string, bool, int, int, int>(ImportLTSpice)))
                                                .WithGlobalOption(new Option<int>("--sampleRate", () => 48000, "Sample Rate"))
                                                .WithGlobalOption(new Option<int>("--oversample", () => 8, "Oversample"))
                                                .WithGlobalOption(new Option<int>("--iterations", () => 8, "Iterations"));
@@ -72,9 +73,10 @@ namespace Tests
             }
         }
 
-        public static void ImportLTSpice(string pattern)
+        public static void ImportLTSpice(string pattern, bool simulate, int sampleRate, int oversample, int iterations)
         {
             var log = new ConsoleLog() { Verbosity = MessageType.Info };
+            var tester = simulate ? new Test() : null;
             int failed = 0;
             int passed = 0;
             foreach (var filename in Globber.Glob(pattern))
@@ -105,10 +107,18 @@ namespace Tests
                     File.Delete(tmp);
 
                     // Build the reloaded schematic — this exercises the same path Tests uses.
-                    reloaded.Build(log);
+                    Circuit.Circuit circuit = reloaded.Build(log);
 
                     log.WriteLine(MessageType.Info, "  OK ({0} symbols, {1} wires)",
                         schematic.Symbols.Count(), schematic.Wires.Count());
+
+                    if (simulate)
+                    {
+                        circuit.Name = Path.GetFileNameWithoutExtension(filename);
+                        var outputs = tester.Run(circuit, t => Harmonics(t, 0.5, 82, 2), sampleRate, 4800, oversample, iterations);
+                        tester.WriteStatistics(circuit.Name, outputs);
+                        log.WriteLine(MessageType.Info, "  Simulated and wrote Stats/{0}.csv ({1} unknowns)", circuit.Name, outputs.Count);
+                    }
                     passed++;
                 }
                 catch (Exception ex)
