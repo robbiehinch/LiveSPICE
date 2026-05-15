@@ -3,27 +3,36 @@ using System.Collections.Generic;
 using System.Linq;
 using Avalonia.Controls;
 using Avalonia.Interactivity;
+using Avalonia.Media;
 using Avalonia.Threading;
+using LiveSPICE.Avalonia.Controls;
 using LiveSPICE.Avalonia.Services;
+using SchematicControls.Editor.Tools;
 using Util;
 
 namespace LiveSPICE.Avalonia.Windows
 {
     public partial class LiveSimulationWindow : Window
     {
-        private readonly Circuit.Schematic schematic;
+        private readonly Circuit.Schematic sourceSchematic;
         private readonly Settings settings;
         private LiveSimulationService service;
         private DispatcherTimer refresh;
 
-        /// <summary>Design-time only constructor — the real entry point is the overload below.</summary>
         public LiveSimulationWindow() : this(null, Settings.Load()) { }
 
         public LiveSimulationWindow(Circuit.Schematic schematic, Settings settings)
         {
             InitializeComponent();
-            this.schematic = schematic;
+            this.sourceSchematic = schematic;
             this.settings = settings;
+
+            // Show the source schematic immediately so the user has visual context before
+            // they hit Start. Once they Start, we swap to the simulation service's clone
+            // (so probes added during simulation don't pollute their saved file).
+            schematicView.Canvas.Schematic = schematic;
+            schematicView.Canvas.Tool = new SelectionTool(schematicView.Canvas);
+            UpdateToolStatus();
 
             PopulateDrivers();
             RestoreSettings();
@@ -116,7 +125,7 @@ namespace LiveSPICE.Avalonia.Windows
             statusText.Text = "Building simulation...";
             try
             {
-                service = new LiveSimulationService(schematic, dev, ins, outs, new NullLog())
+                service = new LiveSimulationService(sourceSchematic, dev, ins, outs, new NullLog())
                 {
                     Oversample = (int)(oversampleBox.Value ?? 8),
                     Iterations = (int)(iterationsBox.Value ?? 8),
@@ -124,6 +133,13 @@ namespace LiveSPICE.Avalonia.Windows
                 service.SolutionBuilt += () => Dispatcher.UIThread.Post(() => statusText.Text = "Running at " + service.SampleRate + " Hz.");
                 service.SimulationFault += ex => Dispatcher.UIThread.Post(() => statusText.Text = "Fault: " + ex.Message);
                 service.Start();
+
+                // Swap the visible schematic to the simulation's clone so the user's edits
+                // (e.g. dropped probes) only affect the running simulation, not the source.
+                schematicView.Canvas.Schematic = service.Schematic;
+                schematicView.Canvas.Tool = new SelectionTool(schematicView.Canvas);
+                UpdateToolStatus();
+
                 startStopButton.Content = "Stop";
             }
             catch (Exception ex)
@@ -136,13 +152,19 @@ namespace LiveSPICE.Avalonia.Windows
         private void StopSimulation()
         {
             if (service == null) return;
-            try { service.Stop(); } catch { /* swallow */ }
+            try { service.Stop(); } catch { }
             service = null;
             startStopButton.Content = "Start";
             statusText.Text = "Stopped.";
             inMeter.Value = 0;
             outMeter.Value = 0;
-            scope.SetTrace(Array.Empty<double>());
+            scope.SetTraces(null);
+
+            // Re-bind to the source schematic (so probes dropped during the previous run
+            // are gone — they only lived on the clone).
+            schematicView.Canvas.Schematic = sourceSchematic;
+            schematicView.Canvas.Tool = new SelectionTool(schematicView.Canvas);
+            UpdateToolStatus();
         }
 
         private static Audio.Channel[] SelectedChannels(ListBox list, Audio.Channel[] all)
@@ -167,7 +189,69 @@ namespace LiveSPICE.Avalonia.Windows
             double outPeak = service.OutputPeaks.Length == 0 ? 0 : service.OutputPeaks.Max();
             inMeter.Value = Math.Min(1.0, inPeak);
             outMeter.Value = Math.Min(1.0, outPeak);
-            scope.SetTrace(service.SnapshotScope(), 1.0);
+
+            List<ScopeTrace> traces = new List<ScopeTrace>
+            {
+                new ScopeTrace("Out", service.SnapshotMaster(), Color.FromRgb(0x4f, 0xc1, 0xff)),
+            };
+            foreach (Circuit.Probe p in service.Probes)
+            {
+                traces.Add(new ScopeTrace(
+                    p.V.ToString(),
+                    service.SnapshotProbe(p),
+                    EdgeColorToAvalonia(p.Color)));
+            }
+            scope.SetTraces(traces, 1.0);
+        }
+
+        private static Color EdgeColorToAvalonia(Circuit.EdgeType e) => e switch
+        {
+            Circuit.EdgeType.Red => Color.FromRgb(255, 80, 80),
+            Circuit.EdgeType.Green => Color.FromRgb(80, 220, 80),
+            Circuit.EdgeType.Blue => Color.FromRgb(20, 180, 255),
+            Circuit.EdgeType.Yellow => Color.FromRgb(240, 220, 80),
+            Circuit.EdgeType.Cyan => Color.FromRgb(80, 220, 220),
+            Circuit.EdgeType.Magenta => Color.FromRgb(220, 80, 220),
+            Circuit.EdgeType.Orange => Color.FromRgb(240, 160, 80),
+            Circuit.EdgeType.Gray => Color.FromRgb(180, 180, 180),
+            Circuit.EdgeType.Black => Color.FromRgb(40, 40, 40),
+            _ => Color.FromRgb(180, 180, 180),
+        };
+
+        private void ToolSelectionClicked(object sender, RoutedEventArgs e)
+        {
+            schematicView.Canvas.Tool = new SelectionTool(schematicView.Canvas);
+            UpdateToolStatus();
+        }
+
+        private void ToolProbeClicked(object sender, RoutedEventArgs e)
+        {
+            if (schematicView.Canvas.Schematic == null) return;
+            schematicView.Canvas.Tool = new SymbolTool(schematicView.Canvas, new Circuit.Probe(NextProbeColor()));
+            UpdateToolStatus();
+        }
+
+        // Cycle through a palette so successive probes get distinct colors.
+        private static readonly Circuit.EdgeType[] ProbePalette = new[]
+        {
+            Circuit.EdgeType.Magenta, Circuit.EdgeType.Green, Circuit.EdgeType.Yellow,
+            Circuit.EdgeType.Cyan, Circuit.EdgeType.Orange, Circuit.EdgeType.Red, Circuit.EdgeType.Blue,
+        };
+
+        private Circuit.EdgeType NextProbeColor()
+        {
+            int existing = service?.Probes.Count ?? 0;
+            // Also count probes on the static (pre-Start) schematic.
+            if (existing == 0 && schematicView.Canvas.Schematic != null)
+                existing = schematicView.Canvas.Schematic.Elements.OfType<Circuit.Symbol>()
+                    .Count(s => s.Component is Circuit.Probe);
+            return ProbePalette[existing % ProbePalette.Length];
+        }
+
+        private void UpdateToolStatus()
+        {
+            string n = schematicView.Canvas.Tool?.GetType().Name ?? "(none)";
+            toolStatus.Text = "(" + n + ")";
         }
 
         private void Cleanup()

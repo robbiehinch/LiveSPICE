@@ -1,7 +1,6 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Threading;
 using System.Threading.Tasks;
 using Circuit;
 using ComputerAlgebra;
@@ -12,29 +11,21 @@ namespace LiveSPICE.Avalonia.Services
     /// <summary>
     /// Owns a running circuit simulation: builds the solution off the UI thread, opens the
     /// audio stream, and pumps input/output buffers through <see cref="Simulation.Run"/> on
-    /// the audio thread. Pure model — no UI dependencies, so it can be reused by any host.
-    ///
-    /// Lifetime: construct, call <see cref="Start"/>, eventually call <see cref="Stop"/>.
+    /// the audio thread. Tracks probe components placed on the cloned schematic and feeds
+    /// their voltage samples into per-probe ring buffers for the scope.
     /// </summary>
     public sealed class LiveSimulationService : IDisposable
     {
         static LiveSimulationService()
         {
-            // Audio.Driver.Drivers uses reflection over AppDomain.CurrentDomain.GetAssemblies(),
-            // which can miss assemblies that the runtime hasn't loaded yet. Touch each driver
-            // type via typeof() so the assemblies are loaded before the first enumeration.
             ForceLoad(typeof(WaveAudio.Driver));
             if (OperatingSystem.IsWindows())
                 ForceLoad(typeof(Asio.Driver));
         }
 
-        private static void ForceLoad(Type t)
-        {
-            // Reference the type; nothing else needed.
-            _ = t.FullName;
-        }
+        private static void ForceLoad(Type t) { _ = t.FullName; }
 
-        private readonly Schematic schematic;
+        private readonly Schematic source;
         private readonly Audio.Device device;
         private readonly Audio.Channel[] inputChannels;
         private readonly Audio.Channel[] outputChannels;
@@ -44,29 +35,30 @@ namespace LiveSPICE.Avalonia.Services
         private readonly List<double[]> inputBuffers = new List<double[]>();
         private readonly List<double[]> outputBuffers = new List<double[]>();
 
+        private Schematic clone;
         private Circuit.Circuit circuit;
         private Simulation simulation;
         private Audio.Stream stream;
         private Expression speakerMix = (Expression)0;
         private readonly List<Expression> inputExprs = new List<Expression>();
+        private readonly List<Probe> probes = new List<Probe>();
+        private readonly Dictionary<Probe, double[]> probeBuffers = new Dictionary<Probe, double[]>();
 
         public int Oversample { get; set; } = 8;
         public int Iterations { get; set; } = 8;
         public double InputGain { get; set; } = 1.0;
         public double OutputGain { get; set; } = 1.0;
 
-        /// <summary>Most recent peak amplitude per input channel (atomic double via lock-free volatile).</summary>
         public double[] InputPeaks { get; private set; }
-        /// <summary>Most recent peak amplitude per output channel.</summary>
         public double[] OutputPeaks { get; private set; }
 
-        /// <summary>Last N samples of the master output mix, for the time-domain scope. Mutex-protected.</summary>
-        private double[] scopeBuffer;
-        private int scopeHead;
-        public int ScopeCapacity => scopeBuffer?.Length ?? 0;
+        // Ring buffer for the master mix scope trace.
+        private double[] masterScope;
+        private int masterHead;
 
         public event Action<Exception> SimulationFault;
         public event Action SolutionBuilt;
+        public event Action ProbesChanged;
 
         public LiveSimulationService(
             Schematic schematic,
@@ -75,8 +67,8 @@ namespace LiveSPICE.Avalonia.Services
             Audio.Channel[] outputs,
             ILog log)
         {
-            this.schematic = schematic ?? throw new ArgumentNullException(nameof(schematic));
-            this.device = device; // may be null → falls back to NullStream
+            this.source = schematic ?? throw new ArgumentNullException(nameof(schematic));
+            this.device = device;
             this.inputChannels = inputs ?? Array.Empty<Audio.Channel>();
             this.outputChannels = outputs ?? Array.Empty<Audio.Channel>();
             this.log = log ?? new NullLog();
@@ -85,39 +77,47 @@ namespace LiveSPICE.Avalonia.Services
             OutputPeaks = new double[this.outputChannels.Length];
         }
 
+        /// <summary>The simulated schematic clone. Bind a SchematicCanvas to this so the user
+        /// can place probes on the running simulation.</summary>
+        public Schematic Schematic => clone;
+
+        public IReadOnlyList<Probe> Probes
+        {
+            get { lock (sync) return probes.ToArray(); }
+        }
+
         public Audio.Stream Stream => stream;
         public double SampleRate => stream?.SampleRate ?? 0;
         public bool IsRunning => stream != null;
 
-        /// <summary>
-        /// Build the circuit, open the audio stream, and start pumping samples.
-        /// </summary>
         public void Start(int scopeBufferSamples = 4096)
         {
-            scopeBuffer = new double[Math.Max(256, scopeBufferSamples)];
-            scopeHead = 0;
+            masterScope = new double[Math.Max(256, scopeBufferSamples)];
+            masterHead = 0;
 
-            // Build the circuit from the schematic on the calling thread; the solution build
-            // happens asynchronously after the stream opens (it depends on SampleRate).
-            Schematic clone = Schematic.Deserialize(schematic.Serialize(), log);
+            clone = Schematic.Deserialize(source.Serialize(), log);
+            clone.Elements.ItemAdded += OnElementAdded;
+            clone.Elements.ItemRemoved += OnElementRemoved;
+
             circuit = clone.Build(log);
 
-            // Discover input expressions and the master speaker mix.
             inputExprs.Clear();
             speakerMix = (Expression)0;
+            probes.Clear();
+            probeBuffers.Clear();
+
             foreach (Component c in circuit.Components)
             {
                 if (c is Input input) inputExprs.Add(input.In);
                 if (c is Speaker spk) speakerMix += spk.Out;
+                if (c is Probe p) { probes.Add(p); probeBuffers[p] = new double[masterScope.Length]; }
             }
 
-            // Open the audio stream.
             if (device != null && (inputChannels.Length > 0 || outputChannels.Length > 0))
                 stream = device.Open(OnSamples, inputChannels, outputChannels);
             else
                 stream = new NullStream(OnSamples);
 
-            // Build the solution on a background task — it depends on stream.SampleRate.
             Task.Run(BuildSolution);
         }
 
@@ -125,23 +125,67 @@ namespace LiveSPICE.Avalonia.Services
         {
             Audio.Stream s;
             lock (sync) { s = stream; stream = null; simulation = null; }
-            try { s?.Stop(); } catch { /* swallow */ }
+            if (clone != null)
+            {
+                clone.Elements.ItemAdded -= OnElementAdded;
+                clone.Elements.ItemRemoved -= OnElementRemoved;
+            }
+            try { s?.Stop(); } catch { }
         }
 
         public void Dispose() => Stop();
 
-        /// <summary>Copy a snapshot of the scope ring buffer for rendering.</summary>
-        public double[] SnapshotScope()
+        /// <summary>Copy a snapshot of the master-mix ring buffer for rendering.</summary>
+        public double[] SnapshotMaster() => SnapshotRing(masterScope, masterHead);
+
+        /// <summary>Copy a snapshot of one probe's ring buffer.</summary>
+        public double[] SnapshotProbe(Probe p)
         {
-            if (scopeBuffer == null) return Array.Empty<double>();
             lock (sync)
             {
-                double[] copy = new double[scopeBuffer.Length];
-                int head = scopeHead;
-                // Order oldest → newest into the output array.
-                Array.Copy(scopeBuffer, head, copy, 0, scopeBuffer.Length - head);
-                Array.Copy(scopeBuffer, 0, copy, scopeBuffer.Length - head, head);
-                return copy;
+                if (!probeBuffers.TryGetValue(p, out double[] buf)) return Array.Empty<double>();
+                return SnapshotRing(buf, masterHead);
+            }
+        }
+
+        private static double[] SnapshotRing(double[] buf, int head)
+        {
+            if (buf == null) return Array.Empty<double>();
+            double[] copy = new double[buf.Length];
+            Array.Copy(buf, head, copy, 0, buf.Length - head);
+            Array.Copy(buf, 0, copy, buf.Length - head, head);
+            return copy;
+        }
+
+        private void OnElementAdded(object sender, ElementEventArgs e)
+        {
+            if (e.Element is Symbol sym && sym.Component is Probe p)
+            {
+                lock (sync)
+                {
+                    probes.Add(p);
+                    probeBuffers[p] = new double[masterScope?.Length ?? 4096];
+                    // Drop the cached simulation so the audio thread rebuilds with the new
+                    // output list on its next sample.
+                    simulation = null;
+                }
+                ProbesChanged?.Invoke();
+                Task.Run(BuildSolution);
+            }
+        }
+
+        private void OnElementRemoved(object sender, ElementEventArgs e)
+        {
+            if (e.Element is Symbol sym && sym.Component is Probe p)
+            {
+                lock (sync)
+                {
+                    probes.Remove(p);
+                    probeBuffers.Remove(p);
+                    simulation = null;
+                }
+                ProbesChanged?.Invoke();
+                Task.Run(BuildSolution);
             }
         }
 
@@ -151,11 +195,18 @@ namespace LiveSPICE.Avalonia.Services
             {
                 Expression h = (Expression)1 / (stream.SampleRate * Oversample);
                 TransientSolution solution = TransientSolution.Solve(circuit.Analyze(), h, log);
+
+                Expression[] outputs;
+                lock (sync)
+                {
+                    outputs = new[] { speakerMix }.Concat(probes.Select(p => p.V)).ToArray();
+                }
+
                 Simulation sim = new Simulation(solution)
                 {
                     Log = log,
                     Input = inputExprs.ToArray(),
-                    Output = new[] { speakerMix },
+                    Output = outputs,
                     Oversample = Oversample,
                     Iterations = Iterations,
                 };
@@ -170,14 +221,16 @@ namespace LiveSPICE.Avalonia.Services
 
         private void OnSamples(int count, Audio.SampleBuffer[] In, Audio.SampleBuffer[] Out, double rate)
         {
-            // Input gain + level meter
             for (int i = 0; i < In.Length && i < InputPeaks.Length; i++)
-            {
                 InputPeaks[i] = In[i].Amplify(InputGain);
-            }
 
             Simulation sim;
-            lock (sync) sim = simulation;
+            Probe[] currentProbes;
+            lock (sync)
+            {
+                sim = simulation;
+                currentProbes = probes.ToArray();
+            }
 
             if (sim == null)
             {
@@ -189,8 +242,6 @@ namespace LiveSPICE.Avalonia.Services
                 {
                     if ((double)sim.SampleRate != rate)
                     {
-                        // Sample rate changed mid-stream — kill the solution and rebuild from
-                        // the audio thread isn't safe; the foreground UI must restart us.
                         lock (sync) simulation = null;
                         SimulationFault?.Invoke(new InvalidOperationException("Sample rate changed; restart simulation."));
                         foreach (Audio.SampleBuffer ob in Out) ob.Clear();
@@ -201,30 +252,37 @@ namespace LiveSPICE.Avalonia.Services
                     for (int i = 0; i < inputExprs.Count; i++)
                     {
                         if (i < In.Length) inputBuffers.Add(In[i].Samples);
-                        else inputBuffers.Add(new double[count]); // missing channel → silence
+                        else inputBuffers.Add(new double[count]);
                     }
 
                     outputBuffers.Clear();
-                    double[] masterMix = new double[count];
-                    outputBuffers.Add(masterMix);
+                    double[] master = new double[count];
+                    outputBuffers.Add(master);
+                    double[][] probeOut = new double[currentProbes.Length][];
+                    for (int i = 0; i < currentProbes.Length; i++)
+                    {
+                        probeOut[i] = new double[count];
+                        outputBuffers.Add(probeOut[i]);
+                    }
 
                     sim.Run(count, inputBuffers, outputBuffers);
 
-                    // Fan out master mix to all configured speaker output channels.
                     for (int i = 0; i < Out.Length; i++)
-                    {
-                        Array.Copy(masterMix, Out[i].Samples, count);
-                    }
+                        Array.Copy(master, Out[i].Samples, count);
 
-                    // Update scope ring buffer with master mix.
                     lock (sync)
                     {
-                        if (scopeBuffer != null)
+                        if (masterScope != null)
                         {
                             for (int i = 0; i < count; i++)
                             {
-                                scopeBuffer[scopeHead] = masterMix[i];
-                                scopeHead = (scopeHead + 1) % scopeBuffer.Length;
+                                masterScope[masterHead] = master[i];
+                                for (int p = 0; p < currentProbes.Length; p++)
+                                {
+                                    if (probeBuffers.TryGetValue(currentProbes[p], out double[] pbuf) && pbuf.Length == masterScope.Length)
+                                        pbuf[masterHead] = probeOut[p][i];
+                                }
+                                masterHead = (masterHead + 1) % masterScope.Length;
                             }
                         }
                     }
@@ -245,11 +303,8 @@ namespace LiveSPICE.Avalonia.Services
                 }
             }
 
-            // Output gain + level meter
             for (int i = 0; i < Out.Length && i < OutputPeaks.Length; i++)
-            {
                 OutputPeaks[i] = Out[i].Amplify(OutputGain);
-            }
         }
     }
 }
