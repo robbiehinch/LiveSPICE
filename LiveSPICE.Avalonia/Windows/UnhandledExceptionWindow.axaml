@@ -2,19 +2,20 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         x:Class="LiveSPICE.Avalonia.Windows.UnhandledExceptionWindow"
         Title="Unhandled Error"
-        Width="640" Height="480"
-        Background="#1e1e1e"
+        Width="680" Height="500"
         WindowStartupLocation="CenterOwner">
-    <Grid RowDefinitions="Auto,*,Auto" Margin="14">
-        <TextBlock Grid.Row="0" Text="An unhandled error occurred." FontSize="16" FontWeight="Bold" Foreground="#f48771" Margin="0,0,0,8" />
-        <Border Grid.Row="1" BorderBrush="#3c3c3c" BorderThickness="1" Background="#0e0e0e">
-            <ScrollViewer Padding="8">
-                <TextBlock x:Name="detailText" Foreground="#cdcdcd" FontFamily="Consolas" TextWrapping="Wrap" />
+    <Grid RowDefinitions="Auto,*,Auto" Margin="18">
+        <TextBlock Grid.Row="0" Text="An unhandled error occurred." FontSize="18" FontWeight="SemiBold" Margin="0,0,0,10"
+                   Foreground="{DynamicResource SystemErrorTextColor}" />
+        <Border Grid.Row="1" BorderBrush="{DynamicResource SystemControlForegroundChromeMediumLowBrush}" BorderThickness="1" CornerRadius="2"
+                Background="{DynamicResource SystemControlBackgroundChromeBlackHighBrush}">
+            <ScrollViewer Padding="10">
+                <TextBlock x:Name="detailText" FontFamily="Consolas,monospace" TextWrapping="Wrap" FontSize="12" />
             </ScrollViewer>
         </Border>
-        <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8" Margin="0,8,0,0">
-            <Button Content="Copy" Click="CopyClicked" MinWidth="80" />
-            <Button Content="Close" Click="CloseClicked" MinWidth="80" />
+        <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8" Margin="0,12,0,0">
+            <Button Content="Copy" Click="CopyClicked" MinWidth="90" />
+            <Button Content="Close" Click="CloseClicked" MinWidth="90" Classes="accent" />
         </StackPanel>
     </Grid>
 </Window>

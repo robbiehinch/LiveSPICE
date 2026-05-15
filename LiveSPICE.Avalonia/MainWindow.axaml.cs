@@ -220,6 +220,87 @@ namespace LiveSPICE.Avalonia
             await w.ShowDialog(this);
         }
 
+        private async void ImportLtSpiceClicked(object sender, RoutedEventArgs e)
+        {
+            FilePickerOpenOptions opts = new FilePickerOpenOptions
+            {
+                Title = "Import LTSpice Schematic",
+                AllowMultiple = false,
+                FileTypeFilter = new[]
+                {
+                    new FilePickerFileType("LTSpice Schematics") { Patterns = new[] { "*.asc" } },
+                    new FilePickerFileType("All Files") { Patterns = new[] { "*.*" } },
+                },
+            };
+            IReadOnlyList<IStorageFile> picks = await StorageProvider.OpenFilePickerAsync(opts);
+            IStorageFile file = picks.FirstOrDefault();
+            string path = file?.TryGetLocalPath();
+            if (string.IsNullOrEmpty(path)) return;
+
+            try
+            {
+                Circuit.LTSpiceImport.IPartLookup lookup = new CatalogPartLookup(library);
+                var result = Circuit.LTSpiceImport.LTSpiceImporter.Import(path, lookup);
+                Circuit.Schematic imported = result.Item1;
+                Circuit.LTSpiceImport.ImportReport report = result.Item2;
+
+                if (report.HasErrors)
+                {
+                    statusText.Text = "LTSpice import errors — see Log pane.";
+                    AppendLog(FormatImportReport(report));
+                    return;
+                }
+
+                canvas.Schematic = imported;
+                core.SetFilePath(null);
+                core.MarkClean();
+                canvas.Tool = new SelectionTool(canvas);
+                UpdateToolStatus();
+                UpdateProperties();
+                statusText.Text = "Imported from " + Path.GetFileName(path);
+                AppendLog(report.Entries.Any() ? FormatImportReport(report) : "Imported " + path + " (no warnings).");
+            }
+            catch (Exception ex)
+            {
+                statusText.Text = "Import failed: " + ex.Message;
+                AppendLog("Import failed: " + ex);
+            }
+        }
+
+        private static string FormatImportReport(Circuit.LTSpiceImport.ImportReport report)
+        {
+            System.Text.StringBuilder sb = new System.Text.StringBuilder();
+            sb.AppendLine("LTSpice import:");
+            foreach (var entry in report.Entries)
+                sb.AppendLine("  " + entry);
+            return sb.ToString();
+        }
+
+        private void AppendLog(string line)
+        {
+            logText.Text = string.IsNullOrEmpty(logText.Text) ? line : logText.Text + System.Environment.NewLine + line;
+        }
+
+        /// <summary>Bridges the Avalonia ComponentLibrary panel to the LTSpice importer's part lookup.</summary>
+        private sealed class CatalogPartLookup : Circuit.LTSpiceImport.IPartLookup
+        {
+            private readonly ComponentLibrary library;
+            public CatalogPartLookup(ComponentLibrary library) { this.library = library; }
+
+            public Circuit.Component TryGetByPartNumber(string partNumber)
+            {
+                if (string.IsNullOrWhiteSpace(partNumber)) return null;
+                foreach (Services.ComponentEntry entry in library.AllEntries)
+                {
+                    Circuit.Component c = entry.Instance;
+                    if (c != null && !string.IsNullOrEmpty(c.PartNumber) &&
+                        string.Equals(c.PartNumber, partNumber, StringComparison.OrdinalIgnoreCase))
+                        return c;
+                }
+                return null;
+            }
+        }
+
         private void SimulateClicked(object sender, RoutedEventArgs e)
         {
             if (canvas.Schematic == null) { statusText.Text = "No schematic to simulate."; return; }

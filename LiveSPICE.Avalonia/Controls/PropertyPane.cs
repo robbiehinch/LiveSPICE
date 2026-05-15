@@ -52,7 +52,7 @@ namespace LiveSPICE.Avalonia.Controls
         public void Show(string message)
         {
             Clear();
-            TextBlock t = new TextBlock { Text = message, Foreground = new SolidColorBrush(Color.FromRgb(0xcd, 0xcd, 0xcd)) };
+            TextBlock t = new TextBlock { Text = message, Opacity = 0.7 };
             root.Children.Add(t);
         }
 
@@ -66,8 +66,8 @@ namespace LiveSPICE.Avalonia.Controls
             TextBlock header = new TextBlock
             {
                 Text = component.GetType().Name,
-                FontWeight = FontWeight.Bold,
-                Foreground = new SolidColorBrush(Color.FromRgb(0xcd, 0xcd, 0xcd)),
+                FontWeight = FontWeight.SemiBold,
+                Margin = new global::Avalonia.Thickness(0, 0, 0, 4),
             };
             root.Children.Add(header);
 
@@ -97,8 +97,9 @@ namespace LiveSPICE.Avalonia.Controls
             TextBlock label = new TextBlock
             {
                 Text = property.Name,
-                Foreground = new SolidColorBrush(Color.FromRgb(0x9c, 0xdc, 0xfe)),
-                Margin = new global::Avalonia.Thickness(0, 4, 0, 0),
+                Opacity = 0.7,
+                FontSize = 11,
+                Margin = new global::Avalonia.Thickness(0, 6, 0, 2),
             };
             TextBox editor = new TextBox
             {

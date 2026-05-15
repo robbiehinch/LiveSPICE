@@ -39,7 +39,10 @@ namespace LiveSPICE.Avalonia.Controls
                 Content = transformHost,
                 HorizontalScrollBarVisibility = ScrollBarVisibility.Auto,
                 VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
-                Background = Brushes.LightGray,
+                // Surround colour for areas outside the schematic canvas itself; the
+                // canvas keeps its own near-white surface so the schematic stays readable
+                // against any theme.
+                Background = new SolidColorBrush(Color.FromRgb(0x33, 0x33, 0x36)),
             };
 
             VisualChildren.Add(scrollViewer);

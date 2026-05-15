@@ -2,20 +2,19 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         x:Class="LiveSPICE.Avalonia.Windows.AboutWindow"
         Title="About LiveSPICE"
-        Width="480" Height="280"
-        Background="#1e1e1e"
+        Width="500" Height="300"
         WindowStartupLocation="CenterOwner"
         CanResize="False">
-    <Grid RowDefinitions="*,Auto" Margin="20">
+    <Grid RowDefinitions="*,Auto" Margin="24">
         <StackPanel Grid.Row="0" Spacing="10">
-            <TextBlock Text="LiveSPICE" FontSize="22" FontWeight="Bold" Foreground="#cdcdcd" />
+            <TextBlock Text="LiveSPICE" FontSize="26" FontWeight="Bold" />
             <TextBlock Text="Real-time SPICE-like circuit simulator for guitar amps and effects."
-                       Foreground="#cdcdcd" TextWrapping="Wrap" />
-            <TextBlock x:Name="versionText" Foreground="#9cdcfe" />
-            <TextBlock Text="Project site: http://www.livespice.org" Foreground="#9cdcfe" />
+                       TextWrapping="Wrap" Opacity="0.85" />
+            <TextBlock x:Name="versionText" Opacity="0.7" />
+            <TextBlock Text="http://www.livespice.org" Opacity="0.7" />
             <TextBlock Text="Avalonia UI head — cross-platform foundation."
-                       Foreground="#888" FontStyle="Italic" Margin="0,8,0,0" />
+                       FontStyle="Italic" Opacity="0.55" Margin="0,10,0,0" />
         </StackPanel>
-        <Button Grid.Row="1" Content="Close" HorizontalAlignment="Right" MinWidth="80" Click="CloseClicked" />
+        <Button Grid.Row="1" Content="Close" HorizontalAlignment="Right" MinWidth="90" Click="CloseClicked" Classes="accent" />
     </Grid>
 </Window>

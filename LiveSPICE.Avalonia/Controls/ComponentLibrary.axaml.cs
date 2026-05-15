@@ -14,6 +14,9 @@ namespace LiveSPICE.Avalonia.Controls
 
         public event Action<Circuit.Component> ComponentClick;
 
+        /// <summary>All catalog entries (flat). Lazily-populated; empty until the panel loads.</summary>
+        public IEnumerable<ComponentEntry> AllEntries => flat ?? Enumerable.Empty<ComponentEntry>();
+
         public ComponentLibrary()
         {
             InitializeComponent();
