@@ -23,6 +23,11 @@ namespace LiveSPICE.Avalonia.Services
         public List<string> AudioOutputs { get; set; } = new List<string>();
         public int LogVerbosity { get; set; } = 1;
 
+        /// <summary>MCP server: if enabled, listens for Claude Code / other MCP clients on
+        /// <c>http://localhost:&lt;McpPort&gt;/mcp</c>. Localhost-only, no auth.</summary>
+        public bool McpEnabled { get; set; } = true;
+        public int McpPort { get; set; } = 27310;
+
         [JsonIgnore]
         public string FilePath { get; private set; }
 

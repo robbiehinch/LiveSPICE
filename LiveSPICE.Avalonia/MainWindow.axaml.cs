@@ -20,6 +20,15 @@ namespace LiveSPICE.Avalonia
         private Settings settings;
         private SchematicEditorCore core;
         private SchematicCanvas canvas;
+        private LiveSimulationWindow activeSimulationWindow;
+
+        /// <summary>The schematic canvas, exposed for the MCP host so tool handlers can
+        /// mutate the schematic / push edits onto the same EditStack the UI uses.</summary>
+        public SchematicCanvas Canvas => canvas;
+
+        /// <summary>The currently-open live simulation window, or null if none. Set when
+        /// the user (or an MCP call) opens the simulation; cleared when the window closes.</summary>
+        public LiveSimulationWindow ActiveSimulationWindow => activeSimulationWindow;
 
         public MainWindow()
         {
@@ -301,13 +310,27 @@ namespace LiveSPICE.Avalonia
             }
         }
 
-        private void SimulateClicked(object sender, RoutedEventArgs e)
+        private void SimulateClicked(object sender, RoutedEventArgs e) => OpenSimulationFromMcp(startImmediately: false);
+
+        /// <summary>Open the live simulation window (idempotent — focuses the existing one
+        /// if already open). When <paramref name="startImmediately"/> is true, also triggers
+        /// the Start action so the simulation begins without further user input.</summary>
+        public void OpenSimulationFromMcp(bool startImmediately)
         {
             if (canvas.Schematic == null) { statusText.Text = "No schematic to simulate."; return; }
+            if (activeSimulationWindow != null)
+            {
+                activeSimulationWindow.Activate();
+                if (startImmediately) activeSimulationWindow.StartFromMcp();
+                return;
+            }
             try
             {
                 LiveSimulationWindow win = new LiveSimulationWindow(canvas.Schematic, settings);
+                activeSimulationWindow = win;
+                win.Closed += (_, _) => { if (ReferenceEquals(activeSimulationWindow, win)) activeSimulationWindow = null; };
                 win.Show(this);
+                if (startImmediately) win.StartFromMcp();
             }
             catch (Exception ex)
             {

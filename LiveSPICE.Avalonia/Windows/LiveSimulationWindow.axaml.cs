@@ -19,6 +19,19 @@ namespace LiveSPICE.Avalonia.Windows
         private LiveSimulationService service;
         private DispatcherTimer refresh;
 
+        /// <summary>The live simulation service backing the window, or null if not started.</summary>
+        public LiveSimulationService ActiveService => service;
+
+        /// <summary>The schematic canvas inside the simulation window — exposed so MCP tools
+        /// can place probes on the running clone rather than the source schematic.</summary>
+        public LiveSPICE.Avalonia.Controls.SchematicCanvas SimCanvas => schematicView.Canvas;
+
+        /// <summary>Trigger Start from outside (used by the MCP <c>start_simulation</c> tool).
+        /// Equivalent to clicking the Start button.</summary>
+        public void StartFromMcp() => StartStopClicked(this, new RoutedEventArgs());
+        /// <summary>Trigger Stop from outside (used by the MCP <c>stop_simulation</c> tool).</summary>
+        public void StopFromMcp() { if (service != null) StopSimulation(); }
+
         public LiveSimulationWindow() : this(null, Settings.Load()) { }
 
         public LiveSimulationWindow(Circuit.Schematic schematic, Settings settings)
