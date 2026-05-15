@@ -38,6 +38,7 @@ namespace LiveSPICE.Avalonia.Services
         private Schematic clone;
         private Circuit.Circuit circuit;
         private Simulation simulation;
+        private Probe[] simulationProbes = Array.Empty<Probe>();
         private Audio.Stream stream;
         private Expression speakerMix = (Expression)0;
         private readonly List<Expression> inputExprs = new List<Expression>();
@@ -52,7 +53,6 @@ namespace LiveSPICE.Avalonia.Services
         public double[] InputPeaks { get; private set; }
         public double[] OutputPeaks { get; private set; }
 
-        // Ring buffer for the master mix scope trace.
         private double[] masterScope;
         private int masterHead;
 
@@ -77,8 +77,6 @@ namespace LiveSPICE.Avalonia.Services
             OutputPeaks = new double[this.outputChannels.Length];
         }
 
-        /// <summary>The simulated schematic clone. Bind a SchematicCanvas to this so the user
-        /// can place probes on the running simulation.</summary>
         public Schematic Schematic => clone;
 
         public IReadOnlyList<Probe> Probes
@@ -124,7 +122,7 @@ namespace LiveSPICE.Avalonia.Services
         public void Stop()
         {
             Audio.Stream s;
-            lock (sync) { s = stream; stream = null; simulation = null; }
+            lock (sync) { s = stream; stream = null; simulation = null; simulationProbes = Array.Empty<Probe>(); }
             if (clone != null)
             {
                 clone.Elements.ItemAdded -= OnElementAdded;
@@ -135,10 +133,8 @@ namespace LiveSPICE.Avalonia.Services
 
         public void Dispose() => Stop();
 
-        /// <summary>Copy a snapshot of the master-mix ring buffer for rendering.</summary>
         public double[] SnapshotMaster() => SnapshotRing(masterScope, masterHead);
 
-        /// <summary>Copy a snapshot of one probe's ring buffer.</summary>
         public double[] SnapshotProbe(Probe p)
         {
             lock (sync)
@@ -164,10 +160,11 @@ namespace LiveSPICE.Avalonia.Services
                 lock (sync)
                 {
                     probes.Add(p);
-                    probeBuffers[p] = new double[masterScope?.Length ?? 4096];
-                    // Drop the cached simulation so the audio thread rebuilds with the new
-                    // output list on its next sample.
-                    simulation = null;
+                    if (!probeBuffers.ContainsKey(p))
+                        probeBuffers[p] = new double[masterScope?.Length ?? 4096];
+                    // Don't null `simulation` here — keep the old sim running with its old
+                    // probe set until BuildSolution succeeds. Mismatch is handled by reading
+                    // `simulationProbes` in OnSamples (not `probes`).
                 }
                 ProbesChanged?.Invoke();
                 Task.Run(BuildSolution);
@@ -182,7 +179,6 @@ namespace LiveSPICE.Avalonia.Services
                 {
                     probes.Remove(p);
                     probeBuffers.Remove(p);
-                    simulation = null;
                 }
                 ProbesChanged?.Invoke();
                 Task.Run(BuildSolution);
@@ -194,14 +190,14 @@ namespace LiveSPICE.Avalonia.Services
             try
             {
                 Expression h = (Expression)1 / (stream.SampleRate * Oversample);
-                TransientSolution solution = TransientSolution.Solve(circuit.Analyze(), h, log);
-
+                Probe[] snapshot;
                 Expression[] outputs;
                 lock (sync)
                 {
-                    outputs = new[] { speakerMix }.Concat(probes.Select(p => p.V)).ToArray();
+                    snapshot = probes.ToArray();
+                    outputs = new[] { speakerMix }.Concat(snapshot.Select(p => p.V)).ToArray();
                 }
-
+                TransientSolution solution = TransientSolution.Solve(circuit.Analyze(), h, log);
                 Simulation sim = new Simulation(solution)
                 {
                     Log = log,
@@ -210,11 +206,16 @@ namespace LiveSPICE.Avalonia.Services
                     Oversample = Oversample,
                     Iterations = Iterations,
                 };
-                lock (sync) { simulation = sim; }
+                lock (sync)
+                {
+                    simulation = sim;
+                    simulationProbes = snapshot;
+                }
                 SolutionBuilt?.Invoke();
             }
             catch (Exception ex)
             {
+                // Leave the previous simulation in place; just surface the fault.
                 SimulationFault?.Invoke(ex);
             }
         }
@@ -225,11 +226,11 @@ namespace LiveSPICE.Avalonia.Services
                 InputPeaks[i] = In[i].Amplify(InputGain);
 
             Simulation sim;
-            Probe[] currentProbes;
+            Probe[] simProbes;
             lock (sync)
             {
                 sim = simulation;
-                currentProbes = probes.ToArray();
+                simProbes = simulationProbes;
             }
 
             if (sim == null)
@@ -258,8 +259,8 @@ namespace LiveSPICE.Avalonia.Services
                     outputBuffers.Clear();
                     double[] master = new double[count];
                     outputBuffers.Add(master);
-                    double[][] probeOut = new double[currentProbes.Length][];
-                    for (int i = 0; i < currentProbes.Length; i++)
+                    double[][] probeOut = new double[simProbes.Length][];
+                    for (int i = 0; i < simProbes.Length; i++)
                     {
                         probeOut[i] = new double[count];
                         outputBuffers.Add(probeOut[i]);
@@ -277,9 +278,9 @@ namespace LiveSPICE.Avalonia.Services
                             for (int i = 0; i < count; i++)
                             {
                                 masterScope[masterHead] = master[i];
-                                for (int p = 0; p < currentProbes.Length; p++)
+                                for (int p = 0; p < simProbes.Length; p++)
                                 {
-                                    if (probeBuffers.TryGetValue(currentProbes[p], out double[] pbuf) && pbuf.Length == masterScope.Length)
+                                    if (probeBuffers.TryGetValue(simProbes[p], out double[] pbuf) && pbuf.Length == masterScope.Length)
                                         pbuf[masterHead] = probeOut[p][i];
                                 }
                                 masterHead = (masterHead + 1) % masterScope.Length;

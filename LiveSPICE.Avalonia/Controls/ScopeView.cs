@@ -67,6 +67,21 @@ namespace LiveSPICE.Avalonia.Controls
                 DrawLegend(context, t, legendY);
                 legendY += 16;
             }
+
+            // Y range indicator in the top-right corner so the user can read the current scale.
+            DrawRangeLabel(context, b);
+        }
+
+        private void DrawRangeLabel(DrawingContext context, Rect b)
+        {
+            IBrush brush = new SolidColorBrush(Color.FromRgb(0xb0, 0xb0, 0xb0));
+            FormattedText ft = new FormattedText(
+                "±" + range.ToString("0.###") + " V",
+                System.Globalization.CultureInfo.InvariantCulture,
+                FlowDirection.LeftToRight,
+                Typeface.Default, 11,
+                brush);
+            context.DrawText(ft, new Point(b.Width - ft.Width - 8, 8));
         }
 
         private static void DrawTrace(DrawingContext context, ScopeTrace trace, Rect b, double yMid, double yScale)

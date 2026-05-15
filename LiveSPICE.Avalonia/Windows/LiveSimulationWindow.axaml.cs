@@ -182,6 +182,12 @@ namespace LiveSPICE.Avalonia.Windows
             return picks.ToArray();
         }
 
+        // Smoothed peak across all visible traces, driving the scope's Y range. The EMA
+        // prevents flicker when a transient pushes a probe trace much higher than steady
+        // state; the floor of 1.0 keeps audio-level signals from getting magnified into
+        // pure noise during silence.
+        private double scopeRange = 1.0;
+
         private void OnRefresh(object sender, EventArgs e)
         {
             if (service == null || !service.IsRunning) return;
@@ -201,7 +207,20 @@ namespace LiveSPICE.Avalonia.Windows
                     service.SnapshotProbe(p),
                     EdgeColorToAvalonia(p.Color)));
             }
-            scope.SetTraces(traces, 1.0);
+
+            double framePeak = 1.0;
+            foreach (ScopeTrace t in traces)
+            {
+                for (int i = 0; i < t.Samples.Length; i++)
+                {
+                    double v = Math.Abs(t.Samples[i]);
+                    if (v > framePeak && !double.IsInfinity(v) && !double.IsNaN(v)) framePeak = v;
+                }
+            }
+            // EMA: snap up fast (so spikes are visible), decay down slowly (so the scope
+            // doesn't zoom back in on every quiet moment and lose context).
+            scopeRange = framePeak > scopeRange ? framePeak : scopeRange * 0.97 + framePeak * 0.03;
+            scope.SetTraces(traces, scopeRange);
         }
 
         private static Color EdgeColorToAvalonia(Circuit.EdgeType e) => e switch
