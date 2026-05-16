@@ -1,15 +1,23 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
-    <TargetFrameworks>net10.0-windows</TargetFrameworks>
+    <!-- net10.0 (cross-platform) builds without the Windows-Forms-based plot
+         tool. net10.0-windows keeps the plotting GUI for richer test reports.
+         The Windows target is excluded when not building on Windows so dotnet
+         doesn't require EnableWindowsTargeting on dev macs / Linux CI. -->
+    <TargetFrameworks Condition="$([MSBuild]::IsOSPlatform('Windows'))">net10.0;net10.0-windows</TargetFrameworks>
+    <TargetFrameworks Condition="!$([MSBuild]::IsOSPlatform('Windows'))">net10.0</TargetFrameworks>
     <OutputType>Exe</OutputType>
     <AssemblyName>CircuitTests</AssemblyName>
     <Product>CircuitTests</Product>
     <Copyright>Copyright ©  2020</Copyright>
     <AssemblyVersion>1.0.0.0</AssemblyVersion>
     <FileVersion>1.0.0.0</FileVersion>
-    <LangVersion>8</LangVersion>
+    <LangVersion>latest</LangVersion>
     <Nullable>enable</Nullable>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(TargetFramework)' == 'net10.0-windows'">
     <UseWindowsForms>true</UseWindowsForms>
+    <DefineConstants>$(DefineConstants);TESTS_WINDOWS_PLOT</DefineConstants>
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="..\Circuit\Circuit.csproj" />
@@ -18,5 +26,9 @@
   </ItemGroup>
   <ItemGroup>
     <PackageReference Include="System.CommandLine" Version="2.0.0-beta1.21308.1" />
+  </ItemGroup>
+  <!-- Plotting/* is Windows-Forms-only; exclude it from the cross-platform target. -->
+  <ItemGroup Condition="'$(TargetFramework)' != 'net10.0-windows'">
+    <Compile Remove="Plotting\**\*.cs" />
   </ItemGroup>
 </Project>

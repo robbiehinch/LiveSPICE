@@ -1,38 +1,61 @@
 using System;
+using System.Linq;
 using Audio;
 
 namespace CoreAudio
 {
+    /// <summary>
+    /// One physical channel on a <see cref="Device"/>.  Carries the zero-based
+    /// channel index so the duplex stream knows which slot of miniaudio's
+    /// interleaved buffer to read/write.
+    /// </summary>
     public sealed class Channel : Audio.Channel
     {
-        private readonly string name;
-        public Channel(string name) { this.name = name; }
-        public override string Name => name;
+        public Channel(string name, int index) { Name_ = name; Index = index; }
+
+        public int Index { get; }
+        private string Name_;
+        public override string Name => Name_;
     }
 
     public sealed class Device : Audio.Device
     {
-        // Opaque per-device identifier from miniaudio. Held until Open() is called.
-        private readonly IntPtr deviceId;
+        private readonly IntPtr context;
+        private readonly IntPtr captureId;
+        private readonly IntPtr playbackId;
 
-        internal Device(string name, IntPtr deviceId, Channel[] inputs, Channel[] outputs)
+        internal Device(
+            string name,
+            IntPtr context,
+            IntPtr captureId,  Channel[] inputs,
+            IntPtr playbackId, Channel[] outputs)
             : base(name)
         {
-            this.deviceId = deviceId;
-            this.inputs = inputs;
-            this.outputs = outputs;
+            this.context    = context;
+            this.captureId  = captureId;
+            this.playbackId = playbackId;
+            this.inputs     = inputs;
+            this.outputs    = outputs;
         }
 
-        public override Audio.Stream Open(Audio.Stream.SampleHandler callback, Audio.Channel[] input, Audio.Channel[] output)
+        public override Audio.Stream Open(
+            Audio.Stream.SampleHandler callback,
+            Audio.Channel[] input,
+            Audio.Channel[] output)
         {
-            // TODO: build an ma_device_config (duplex) with this device's id as both
-            // capture and playback id, install a managed-to-native trampoline that
-            // converts the ma_uint32 frameCount + float* buffers into a SampleBuffer[]
-            // pair and invokes `callback`, then call ma_device_init/start.
-            //
-            // Returns a CoreAudio.Stream that owns the native ma_device handle.
-            throw new NotImplementedException(
-                "CoreAudio.Device.Open: pending native miniaudio bindings + binary bundling.");
+            if (callback == null) throw new ArgumentNullException(nameof(callback));
+
+            // The user picks Channel objects out of the InputChannels / OutputChannels
+            // lists; pass them straight through to the Stream so it can demux/mux the
+            // miniaudio interleaved buffers using each channel's stored index.
+            var inputCh  = input ?.Cast<Channel>().ToArray() ?? Array.Empty<Channel>();
+            var outputCh = output?.Cast<Channel>().ToArray() ?? Array.Empty<Channel>();
+
+            return new Stream(
+                callback,
+                context,
+                inputCh.Length  > 0 ? captureId  : IntPtr.Zero, inputCh,
+                outputCh.Length > 0 ? playbackId : IntPtr.Zero, outputCh);
         }
     }
 }

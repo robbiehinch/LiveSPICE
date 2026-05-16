@@ -13,10 +13,18 @@
     <ProjectReference Include="..\Util\Util.csproj" />
   </ItemGroup>
   <ItemGroup>
-    <Content Include="Components\Diodes.xml" />
-    <Content Include="Components\OpAmps.xml" />
-    <Content Include="Components\Readme.txt" />
-    <Content Include="Components\Transistors.xml" />
+    <Content Include="Components\Diodes.xml">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="Components\OpAmps.xml">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="Components\Readme.txt">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="Components\Transistors.xml">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
     <Content Include="Components\Tubes.xml">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>

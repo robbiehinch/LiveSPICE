@@ -21,6 +21,10 @@ namespace LiveSPICE.Avalonia
             AppBuilder.Configure<App>()
                 .UsePlatformDetect()
                 .WithInterFont()
+                // Make the app behave like a regular macOS GUI app even when launched
+                // outside of an .app bundle (the default policy can hide the window
+                // behind other apps and suppress the Dock icon).
+                .With(new MacOSPlatformOptions { ShowInDock = true })
                 .LogToTrace();
     }
 }

@@ -9,20 +9,27 @@
     <RootNamespace>LiveSPICE.Avalonia</RootNamespace>
     <AssemblyName>LiveSPICE.Avalonia</AssemblyName>
   </PropertyGroup>
+  <PropertyGroup Condition="$([MSBuild]::IsOSPlatform('Windows'))">
+    <DefineConstants>$(DefineConstants);LIVESPICE_WINDOWS</DefineConstants>
+  </PropertyGroup>
+  <PropertyGroup Condition="$([MSBuild]::IsOSPlatform('OSX'))">
+    <DefineConstants>$(DefineConstants);LIVESPICE_OSX</DefineConstants>
+  </PropertyGroup>
   <ItemGroup>
     <!--
       Versions are placeholders. The Avalonia 11.x line is the target per the plan; pin
       the exact patch once the upgrade work proper kicks off (Tier 4 in the macOS-port
       plan).
     -->
-    <PackageReference Include="Avalonia" Version="11.2.0" />
-    <PackageReference Include="Avalonia.Desktop" Version="11.2.0" />
-    <PackageReference Include="Avalonia.Themes.Fluent" Version="11.2.0" />
-    <PackageReference Include="Avalonia.Fonts.Inter" Version="11.2.0" />
-    <PackageReference Include="Avalonia.Diagnostics" Version="11.2.0" Condition="'$(Configuration)' == 'Debug'" />
-    <!-- Docking — equivalent of AvalonDock for Avalonia. -->
-    <PackageReference Include="Dock.Avalonia" Version="11.2.0" />
-    <PackageReference Include="Dock.Model.Mvvm" Version="11.2.0" />
+    <PackageReference Include="Avalonia" Version="11.3.15" />
+    <PackageReference Include="Avalonia.Desktop" Version="11.3.15" />
+    <PackageReference Include="Avalonia.Themes.Fluent" Version="11.3.15" />
+    <PackageReference Include="Avalonia.Fonts.Inter" Version="11.3.15" />
+    <PackageReference Include="Avalonia.Diagnostics" Version="11.3.15" Condition="'$(Configuration)' == 'Debug'" />
+    <!-- Docking — equivalent of AvalonDock for Avalonia. Dock pins to its own
+         Avalonia version, so keep the major in sync. -->
+    <PackageReference Include="Dock.Avalonia" Version="11.3.0" />
+    <PackageReference Include="Dock.Model.Mvvm" Version="11.3.0" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\Audio\Audio.csproj" />

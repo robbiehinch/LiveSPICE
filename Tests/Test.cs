@@ -1,6 +1,8 @@
 ﻿using Circuit;
 using ComputerAlgebra;
+#if TESTS_WINDOWS_PLOT
 using Plotting;
+#endif
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -157,6 +159,7 @@ namespace Tests
 
         public void PlotAll(string Title, Dictionary<Expression, List<double>> Outputs)
         {
+#if TESTS_WINDOWS_PLOT
             Plot p = new Plot()
             {
                 Title = Title,
@@ -173,7 +176,10 @@ namespace Tests
             { Name = i.Key.ToString() }));
 
             System.IO.Directory.CreateDirectory("Plots");
-            p.Save("Plots\\" + Title + ".bmp");
+            p.Save(Path.Combine("Plots", Title + ".bmp"));
+#else
+            Console.WriteLine("--plot requires the net10.0-windows target framework; skipping plot for '{0}'.", Title);
+#endif
         }
         public void WriteStatistics(string Title, Dictionary<Expression, List<double>> Outputs)
         {
@@ -190,7 +196,7 @@ namespace Tests
                 sb.AppendLine(string.Format(cols, i.Key, mean, min, max, rms));
             }
 
-            string path = "Stats\\" + Title + ".csv";
+            string path = Path.Combine("Stats", Title + ".csv");
             System.IO.Directory.CreateDirectory("Stats");
             File.WriteAllText(path, sb.ToString());
         }

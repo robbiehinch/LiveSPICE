@@ -1,4 +1,5 @@
-﻿using System.Collections.Generic;
+using System.Collections.Generic;
+using System.Runtime.InteropServices;
 
 namespace WaveAudio
 {
@@ -6,6 +7,12 @@ namespace WaveAudio
     {
         public Driver()
         {
+            // WaveAudio is a thin wrapper around winmm.dll; skip device enumeration on
+            // non-Windows platforms so the reflection-based driver loader doesn't see a
+            // DllNotFoundException at startup.
+            if (!RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+                return;
+
             devices = new List<Audio.Device>() { new Device() };
         }
 

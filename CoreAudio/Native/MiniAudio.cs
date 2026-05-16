@@ -4,101 +4,97 @@ using System.Runtime.InteropServices;
 namespace CoreAudio.Native
 {
     /// <summary>
-    /// Thin P/Invoke bindings to a subset of the <a href="https://miniaud.io/">miniaudio</a>
-    /// C API. Only the device-lifecycle and duplex-callback surface is bound — enough to
-    /// run a single <see cref="CoreAudio.Stream"/>.
+    /// P/Invoke bindings against the LiveSPICE-side shim (<c>livespice_miniaudio.c</c>)
+    /// over <a href="https://miniaud.io/">miniaudio</a>.
     ///
-    /// The native binary must be present alongside the managed assembly. On macOS that
-    /// means <c>runtimes/osx-{arm64,x64}/native/libminiaudio.dylib</c>. The .dylib itself
-    /// is not checked into the repo yet — see the plan's Tier 3 open question for the
-    /// bundling decision.
+    /// We talk to miniaudio through a thin C shim rather than the raw
+    /// <c>ma_device_config</c> / <c>ma_device</c> structs because those are large
+    /// (hundreds of bytes), version-sensitive, and contain unions that would
+    /// require constant re-checking against the bundled <c>miniaudio.h</c>. The
+    /// shim hides all that behind opaque pointers.
     /// </summary>
     internal static class MiniAudio
     {
         private const string LibraryName = "miniaudio";
 
-        // Subset of ma_device_type. Capture+playback gives us a single duplex device,
-        // which matches the LiveSPICE SampleHandler(in[], out[]) contract.
+        // Mirrors ma_device_type. Stable across miniaudio versions.
         public enum DeviceType : int
         {
             Playback = 1,
-            Capture = 2,
-            Duplex = Playback | Capture,
+            Capture  = 2,
+            Duplex   = Playback | Capture,
             Loopback = 4,
         }
 
-        public enum Format : int
-        {
-            Unknown = 0,
-            U8 = 1,
-            S16 = 2,
-            S24 = 3,
-            S32 = 4,
-            F32 = 5,
-        }
-
-        public enum Result : int
-        {
-            Success = 0,
-            // miniaudio returns a much wider error enum; non-zero is just "failure".
-        }
-
         /// <summary>
-        /// Native miniaudio callback signature:
-        /// <c>void on_data(ma_device* pDevice, void* pOutput, const void* pInput, ma_uint32 frameCount);</c>
+        /// Native data-callback signature, called on the audio thread.
+        /// Input pointer may be null if the device is playback-only.
+        /// Output pointer may be null if the device is capture-only.
         /// </summary>
         [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
-        public delegate void DataCallback(IntPtr device, IntPtr output, IntPtr input, uint frameCount);
+        public delegate void DataCallback(
+            IntPtr userdata,
+            IntPtr input,  int inputChannels,
+            IntPtr output, int outputChannels,
+            int frameCount);
 
-        // The real ma_device_config and ma_device structs are large (hundreds of bytes) and
-        // version-sensitive. A production binding should mirror the exact layout from the
-        // miniaudio.h header bundled with the .dylib. For scaffolding purposes we expose
-        // an opaque handle and rely on a thin C shim (planned) that returns the configured
-        // pointer.
-        [StructLayout(LayoutKind.Sequential)]
-        public struct DeviceConfig
-        {
-            public DeviceType DeviceType;
-            public uint SampleRate;
-            public uint PeriodSizeInFrames;
-            public Format CaptureFormat;
-            public uint CaptureChannels;
-            public Format PlaybackFormat;
-            public uint PlaybackChannels;
-            public IntPtr CaptureDeviceId;     // ma_device_id*
-            public IntPtr PlaybackDeviceId;    // ma_device_id*
-            public IntPtr DataCallback;        // function pointer
-            public IntPtr UserData;
-        }
+        // ---- Context ----
+        [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl)]
+        public static extern IntPtr ls_context_create();
 
-        // ---- Lifecycle ----
-        //
-        // These signatures correspond to the public miniaudio API. They will not bind on
-        // Windows (LibraryName "miniaudio" has no Windows binary in this project); the
-        // driver is only instantiated when running on macOS — see Driver.IsSupported.
+        [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl)]
+        public static extern void ls_context_destroy(IntPtr context);
 
-        [DllImport(LibraryName, EntryPoint = "ma_context_init", CallingConvention = CallingConvention.Cdecl)]
-        public static extern Result ContextInit(IntPtr backends, uint backendCount, IntPtr config, IntPtr context);
-
-        [DllImport(LibraryName, EntryPoint = "ma_context_uninit", CallingConvention = CallingConvention.Cdecl)]
-        public static extern Result ContextUninit(IntPtr context);
-
-        [DllImport(LibraryName, EntryPoint = "ma_context_get_devices", CallingConvention = CallingConvention.Cdecl)]
-        public static extern Result ContextGetDevices(
+        [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl)]
+        public static extern int ls_context_enumerate(
             IntPtr context,
-            out IntPtr pPlaybackInfos, out uint playbackCount,
-            out IntPtr pCaptureInfos, out uint captureCount);
+            out IntPtr playbackInfos, out int playbackCount,
+            out IntPtr captureInfos,  out int captureCount);
 
-        [DllImport(LibraryName, EntryPoint = "ma_device_init", CallingConvention = CallingConvention.Cdecl)]
-        public static extern Result DeviceInit(IntPtr context, ref DeviceConfig config, IntPtr device);
+        // ---- Device-info accessors. ----
+        [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl)]
+        public static extern IntPtr ls_device_info_name(IntPtr info);
 
-        [DllImport(LibraryName, EntryPoint = "ma_device_uninit", CallingConvention = CallingConvention.Cdecl)]
-        public static extern void DeviceUninit(IntPtr device);
+        [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl)]
+        public static extern IntPtr ls_device_info_id(IntPtr info);
 
-        [DllImport(LibraryName, EntryPoint = "ma_device_start", CallingConvention = CallingConvention.Cdecl)]
-        public static extern Result DeviceStart(IntPtr device);
+        [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl)]
+        public static extern UIntPtr ls_device_info_size();
 
-        [DllImport(LibraryName, EntryPoint = "ma_device_stop", CallingConvention = CallingConvention.Cdecl)]
-        public static extern Result DeviceStop(IntPtr device);
+        [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl)]
+        public static extern int ls_context_get_device_channels(
+            IntPtr context,
+            DeviceType type,
+            IntPtr deviceId,
+            out int channels);
+
+        // ---- Device / stream ----
+        [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl)]
+        public static extern IntPtr ls_device_create(
+            IntPtr context,
+            IntPtr captureId,  int captureChannels,
+            IntPtr playbackId, int playbackChannels,
+            int sampleRate,
+            int periodFrames,
+            IntPtr dataCallback,
+            IntPtr userdata);
+
+        [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl)]
+        public static extern int ls_device_start(IntPtr device);
+
+        [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl)]
+        public static extern int ls_device_stop(IntPtr device);
+
+        [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl)]
+        public static extern void ls_device_destroy(IntPtr device);
+
+        [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl)]
+        public static extern int ls_device_sample_rate(IntPtr device);
+
+        [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl)]
+        public static extern int ls_device_capture_channels(IntPtr device);
+
+        [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl)]
+        public static extern int ls_device_playback_channels(IntPtr device);
     }
 }

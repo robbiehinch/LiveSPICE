@@ -166,8 +166,20 @@ namespace LiveSPICE.Avalonia.Services
                 CatalogCategory child = root.FindChild(Path.GetFileName(sub));
                 LoadLibrariesRecursive(child, sub);
             }
+            // Filter to known library extensions. The dev-tree fallback path otherwise
+            // pulls in *.cs source files (the Circuit/Components dir mixes XML + sources),
+            // which the SPICE-library fallback then tries to parse and spams the log.
             foreach (string file in Directory.GetFiles(dir))
-                LoadOne(root, file);
+            {
+                string ext = Path.GetExtension(file);
+                if (string.Equals(ext, ".xml", StringComparison.OrdinalIgnoreCase) ||
+                    string.Equals(ext, ".lib", StringComparison.OrdinalIgnoreCase) ||
+                    string.Equals(ext, ".sub", StringComparison.OrdinalIgnoreCase) ||
+                    string.Equals(ext, ".mod", StringComparison.OrdinalIgnoreCase))
+                {
+                    LoadOne(root, file);
+                }
+            }
         }
 
         private static void LoadOne(CatalogCategory root, string file)

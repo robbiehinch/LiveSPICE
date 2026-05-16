@@ -19,8 +19,12 @@ namespace LiveSPICE.Avalonia.Services
         static LiveSimulationService()
         {
             ForceLoad(typeof(WaveAudio.Driver));
-            if (OperatingSystem.IsWindows())
-                ForceLoad(typeof(Asio.Driver));
+#if LIVESPICE_WINDOWS
+            ForceLoad(typeof(Asio.Driver));
+#endif
+#if LIVESPICE_OSX
+            ForceLoad(typeof(CoreAudio.Driver));
+#endif
         }
 
         private static void ForceLoad(Type t) { _ = t.FullName; }
