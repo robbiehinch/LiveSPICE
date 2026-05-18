@@ -18,3 +18,8 @@ Upgraded all 5 Tier 2 projects. SchematicControls, Tests, Benchmarks → net10.0
 
 Upgraded LiveSPICEVst from net8.0-windows to net10.0-windows. Removed framework-included packages. AudioPlugSharpWPF 0.6.10 was flagged as incompatible but builds and links successfully (targets net8.0, forward-compatible). Build succeeds.
 
+
+## [2026-05-14 11:22] 05-apps
+
+Upgraded LiveSPICE and MockVst to net10.0-windows. Removed framework-included packages (Microsoft.CSharp, System.Data.DataSetExtensions). Full solution builds successfully. Test runner is a custom console app — glob pattern issue with shell escaping is pre-existing, not upgrade-related.
+

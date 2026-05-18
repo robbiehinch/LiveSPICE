@@ -4,7 +4,7 @@
 
 Upgrading 12 projects in LiveSPICE from .NET Standard 2.0 / .NET 6 / .NET 8 to .NET 10.0 using a bottom-up strategy, progressing from foundation libraries to top-level applications.
 
-**Progress**: 4/5 tasks complete (80%) ![80%](https://progress-bar.xyz/80)
+**Progress**: 5/5 tasks complete (100%) ![100%](https://progress-bar.xyz/100)
 
 ## Tasks
 
@@ -12,4 +12,4 @@ Upgrading 12 projects in LiveSPICE from .NET Standard 2.0 / .NET 6 / .NET 8 to .
 - ✅ 02-mid-level-libs: Upgrade mid-level libraries (Tier 1)
 - ✅ 03-upper-libs-and-tests: Upgrade upper libraries, tests, and benchmarks (Tier 2)
 - ✅ 04-livespicevst: Upgrade LiveSPICEVst (Tier 3)
-- 🔄 05-apps: Upgrade top-level applications (Tier 4)
+- ✅ 05-apps: Upgrade top-level applications (Tier 4)
